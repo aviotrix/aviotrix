@@ -1,6 +1,6 @@
 {
   "name": "@aviotrix/node",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "libav (FFmpeg) remuxing and metadata for Node through a custom async AVIO layer",
   "license": "MIT",
   "type": "module",
@@ -40,7 +40,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aviotrix/types": "0.1.0",
+    "@aviotrix/types": "0.1.1",
     "cmake-js": "^8.0.0",
     "node-addon-api": "^8.9.2",
     "prebuild-install": "^7.1.3"

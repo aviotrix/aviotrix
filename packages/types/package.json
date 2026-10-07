@@ -1,6 +1,6 @@
 {
   "name": "@aviotrix/types",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared TypeScript contract for aviotrix: IoSource, IoSink, Metadata, remux types, AviotrixError",
   "license": "MIT",
   "type": "module",

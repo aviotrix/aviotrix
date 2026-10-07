@@ -1,6 +1,6 @@
 {
   "name": "@aviotrix/wasm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "libav (FFmpeg) remuxing and metadata in the browser (WebAssembly + JSPI) through a custom async AVIO layer",
   "license": "MIT",
   "type": "module",
@@ -27,7 +27,7 @@
     "size": "ls -l dist/aviotrix.wasm | awk '{print $5\" bytes\"}' && gzip -9 -c dist/aviotrix.wasm | wc -c | awk '{print $1\" bytes gzipped\"}'"
   },
   "dependencies": {
-    "@aviotrix/types": "0.1.0"
+    "@aviotrix/types": "0.1.1"
   },
   "devDependencies": {
     "@vitest/browser": "^5.0.3",
