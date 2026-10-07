@@ -303,3 +303,19 @@ TEST_CASE("toJson(RemuxResult)") {
       aviotrix::toJson(r) ==
       R"({"streams":[{"input":0,"output":0},{"input":2,"output":null,"skippedReason":"codec subrip is not supported by muxer mp4"}],"bytesRead":10,"bytesWritten":20,"packets":3})");
 }
+
+TEST_CASE("remux mkv with PTS-only B-frame video to mp4 synthesizes DTS and reopens") {
+  test::FileSource src(test::fixturePath("h264-aac-srt.mkv"));
+  MediaReader reader;
+  REQUIRE(reader.open(src).ok());
+  test::MemorySink sink(true);
+  RemuxOptions opt;
+  opt.format = "mp4";
+  RemuxResult result;
+  REQUIRE(reader.remux(sink, opt, result).ok());
+  auto m = reopen(sink.bytes());
+  REQUIRE(m.streams.size() == 2);
+  REQUIRE(m.streams[0].codec == "h264");
+  REQUIRE(m.duration.has_value());
+  REQUIRE(std::abs(*m.duration - *reader.metadata().duration) < 0.2);
+}

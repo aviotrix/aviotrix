@@ -4,6 +4,7 @@
 
 #include "avio_output.h"
 #include "aviotrix/media_reader.h"
+#include "dts_synthesizer.h"
 #include "log_router.h"
 #include "media_reader_impl.h"
 
@@ -127,6 +128,38 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
 
   std::unique_ptr<AVPacket, PacketDeleter> pkt(av_packet_alloc());
   std::optional<double> lastTimestamp;
+  // Video streams whose demuxer supplies PTS only (e.g. Matroska with B-frames) get DTS synthesized.
+  enum class DtsMode { Undecided, Passthrough, Synthesize };
+  std::vector<DtsMode> dtsMode(oc->nb_streams, DtsMode::Undecided);
+  std::vector<std::unique_ptr<detail::DtsSynthesizer>> synths(oc->nb_streams);
+
+  // Writes one packet (taking ownership of its data) and reports progress.
+  auto writePacket = [&](AVPacket* p) {
+    const AVStream* ost = oc->streams[p->stream_index];
+    if (p->pts != AV_NOPTS_VALUE) lastTimestamp = p->pts * av_q2d(ost->time_base);
+    const int wret = av_interleaved_write_frame(oc.get(), p);
+    if (wret < 0) {
+      failedCall = "av_interleaved_write_frame";
+      return wret;
+    }
+    result.packets++;
+    if (opt.onProgress && result.packets % opt.progressIntervalPackets == 0) {
+      opt.onProgress(
+          RemuxProgress{impl_->input->bytesRead() - bytesReadAtStart, output->bytesWritten(), lastTimestamp});
+    }
+    return 0;
+  };
+  // Writes and frees packets handed out by a synthesizer; frees all of them even after a failure.
+  auto writeAndFree = [&](std::vector<AVPacket*>& ready) {
+    int wret = 0;
+    for (AVPacket*& p : ready) {
+      if (wret >= 0) wret = writePacket(p);
+      av_packet_free(&p);
+    }
+    ready.clear();
+    return wret;
+  };
+
   if (headerWritten) {
     ret = 0;
     while (true) {
@@ -149,19 +182,39 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
       av_packet_rescale_ts(pkt.get(), ist->time_base, ost->time_base);
       pkt->stream_index = oi;
       pkt->pos = -1;
-      if (pkt->pts != AV_NOPTS_VALUE) lastTimestamp = pkt->pts * av_q2d(ost->time_base);
-      ret = av_interleaved_write_frame(oc.get(), pkt.get());  // takes ownership of the packet data
-      if (ret < 0) {
-        failedCall = "av_interleaved_write_frame";
-        break;
+
+      if (dtsMode[oi] == DtsMode::Undecided) {
+        const bool needsDts = ost->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
+                              (pkt->dts == AV_NOPTS_VALUE || (pkt->pts != AV_NOPTS_VALUE && pkt->dts > pkt->pts));
+        dtsMode[oi] = needsDts ? DtsMode::Synthesize : DtsMode::Passthrough;
+        if (needsDts) synths[oi] = std::make_unique<detail::DtsSynthesizer>();
       }
-      result.packets++;
-      if (opt.onProgress && result.packets % opt.progressIntervalPackets == 0) {
-        opt.onProgress(
-            RemuxProgress{impl_->input->bytesRead() - bytesReadAtStart, output->bytesWritten(), lastTimestamp});
+      if (dtsMode[oi] == DtsMode::Synthesize) {
+        AVPacket* owned = av_packet_alloc();
+        if (!owned) {
+          ret = AVERROR(ENOMEM);
+          failedCall = "av_packet_alloc";
+          break;
+        }
+        av_packet_move_ref(owned, pkt.get());
+        std::vector<AVPacket*> ready;
+        synths[oi]->push(owned, ready);
+        ret = writeAndFree(ready);
+      } else {
+        ret = writePacket(pkt.get());  // takes ownership of the packet data
+      }
+      if (ret < 0) break;
+    }
+    if (ret == AVERROR_EOF) {
+      ret = 0;
+      for (auto& synth : synths) {
+        if (!synth) continue;
+        std::vector<AVPacket*> ready;
+        synth->flush(ready);
+        ret = writeAndFree(ready);
+        if (ret < 0) break;
       }
     }
-    if (ret == AVERROR_EOF) ret = 0;
     if (ret == 0) {
       ret = av_write_trailer(oc.get());
       if (ret < 0) failedCall = "av_write_trailer";
