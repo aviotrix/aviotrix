@@ -14,4 +14,6 @@ macOS: `brew install cmake nasm emscripten ffmpeg`. FFmpeg pinned at `n8.1.3`, L
 
 ## WASM size
 
-Measured in Task 11; recorded here.
+Measured with `npm run size -w @aviotrix/wasm` (FFmpeg `n8.1.3`, Emscripten 6.0.10, `-Oz`):
+
+- `aviotrix.wasm`: 1320838 bytes raw, 544024 bytes gzipped (`gzip -9`).

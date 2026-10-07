@@ -4,5 +4,11 @@
   "rules": {
     "typescript/no-explicit-any": "error",
     "no-unused-vars": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["packages/wasm/**"],
+      "rules": { "no-underscore-dangle": "off" }
+    }
+  ]
 }

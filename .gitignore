@@ -4,3 +4,4 @@ build/
 *.node
 .DS_Store
 .superpowers/
+packages/wasm/dist/
