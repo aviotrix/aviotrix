@@ -1,16 +1,7 @@
 import { createRequire } from 'node:module';
-import type { MaybePromise } from '@aviotrix/types';
+import type { BindingHostCallbacks as NativeHost } from '@aviotrix/types';
 
-export interface NativeHost {
-  sourceOpen(): MaybePromise<number | null>;
-  sourceRead(offset: number, length: number): MaybePromise<Uint8Array>;
-  sourceClose(): MaybePromise<void>;
-  sinkOpen(): MaybePromise<void>;
-  sinkWrite(offset: number, data: Uint8Array): MaybePromise<void>;
-  sinkClose(): MaybePromise<void>;
-  onLog(level: string, text: string): void;
-  onProgress(bytesRead: number, bytesWritten: number, timestamp: number | null): void;
-}
+export type { BindingHostCallbacks as NativeHost } from '@aviotrix/types';
 
 export interface NativeRemuxOptions {
   format: string;

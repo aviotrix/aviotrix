@@ -1,5 +1,7 @@
 import {
   AviotrixError,
+  BindingHost as Host,
+  OperationQueue,
   parseMetadataJson,
   parseRemuxResultJson,
   type IoSink,
@@ -10,9 +12,7 @@ import {
   type RemuxResult,
 } from '@aviotrix/types';
 import { wrapNativeError } from './errors.js';
-import { Host } from './host.js';
 import { native, type NativeReader, type NativeRemuxOptions } from './native.js';
-import { OperationQueue } from './queue.js';
 
 export class MediaReader {
   readonly metadata: Metadata;

@@ -12,3 +12,6 @@ export type { RemuxOptions, RemuxProgress, RemuxResult, RemuxStreamMapping } fro
 export { AviotrixError, isNativeFailure, toAviotrixError } from './error.js';
 export type { NativeFailure } from './error.js';
 export { parseMetadataJson, parseRemuxResultJson } from './parse.js';
+export { BindingHost } from './host.js';
+export type { BindingHostCallbacks } from './host.js';
+export { OperationQueue } from './queue.js';

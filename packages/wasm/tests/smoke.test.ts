@@ -5,7 +5,9 @@ describe('wasm module', () => {
   it('runs in a JSPI-capable browser and instantiates', async () => {
     expect('Suspending' in WebAssembly).toBe(true);
     const mod = await createAviotrixModule({
-      locateFile: (p: string) => new URL(`../dist/${p}`, import.meta.url).href,
+      // A static URL: Vite expands a templated `new URL(`../dist/${p}`, import.meta.url)` into a
+      // glob over every file in dist/, and importing tsc's .js.map output from there fails.
+      locateFile: () => new URL('../dist/aviotrix.wasm', import.meta.url).href,
     });
     expect(mod.aviotrixHosts).toBeInstanceOf(Map);
     const id = mod._avx_reader_new(42);
