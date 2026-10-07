@@ -1,7 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdio>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "aviotrix/io.h"
