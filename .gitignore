@@ -3,3 +3,4 @@ dist/
 build/
 *.node
 .DS_Store
+.superpowers/
