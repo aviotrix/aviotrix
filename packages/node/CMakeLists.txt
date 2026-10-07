@@ -29,3 +29,9 @@ target_include_directories(aviotrix_node PRIVATE ${CMAKE_JS_INC} ${NODE_ADDON_AP
 target_compile_definitions(aviotrix_node PRIVATE NAPI_VERSION=8 NAPI_CPP_EXCEPTIONS)
 target_compile_options(aviotrix_node PRIVATE -Wall -Wextra -Werror)
 target_link_libraries(aviotrix_node PRIVATE aviotrix_core ${CMAKE_JS_LIB})
+# FFmpeg's x86 assembly references global constants with PC-relative relocations. Folding the static
+# archives into a shared object only links on Linux if those symbols bind locally, which is what
+# FFmpeg's own shared builds do with -Bsymbolic.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_options(aviotrix_node PRIVATE "-Wl,-Bsymbolic")
+endif()
