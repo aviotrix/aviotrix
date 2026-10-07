@@ -74,6 +74,7 @@ class MemorySink final : public aviotrix::IoSink {
     return aviotrix::Status::Ok();
   }
   const std::vector<uint8_t>& bytes() const { return bytes_; }
+  bool opened() const { return opened_; }
   bool closed() const { return closed_; }
   int writes() const { return writes_; }
 

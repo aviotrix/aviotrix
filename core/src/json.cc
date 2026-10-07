@@ -205,4 +205,35 @@ std::string toJson(const Metadata& m) {
   return w.str();
 }
 
+std::string toJson(const RemuxResult& r) {
+  JsonWriter w;
+  w.beginObject();
+  w.key("streams");
+  w.beginArray();
+  for (const RemuxStreamMapping& s : r.streams) {
+    w.beginObject();
+    w.key("input");
+    w.value(s.input);
+    w.key("output");
+    if (s.output)
+      w.value(*s.output);
+    else
+      w.null();
+    if (!s.output) {
+      w.key("skippedReason");
+      w.value(s.skippedReason);
+    }
+    w.endObject();
+  }
+  w.endArray();
+  w.key("bytesRead");
+  w.value(r.bytesRead);
+  w.key("bytesWritten");
+  w.value(r.bytesWritten);
+  w.key("packets");
+  w.value(r.packets);
+  w.endObject();
+  return w.str();
+}
+
 }  // namespace aviotrix
