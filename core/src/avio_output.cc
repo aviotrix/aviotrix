@@ -47,7 +47,7 @@ Status AvioOutput::closeIo() {
   sinkOpen_ = false;
   Status st = sink_->close();
   if (!st.ok() && lastError_.ok()) lastError_ = st;
-  return st;
+  return lastError_;  // a failed write or final flush wins over a clean close
 }
 
 int AvioOutput::writePacket(void* opaque, const uint8_t* buf, int bufSize) {

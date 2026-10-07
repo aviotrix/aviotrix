@@ -110,8 +110,8 @@ TEST_CASE("truncated size yields EOF, never reads past the reported size") {
     aviotrix::Status close() override { return inner.close(); }
   } src;
   MediaReader reader;
-  (void)reader.open(src);  // faststart mp4: may succeed with a short duration, or fail; both are fine
-  REQUIRE(src.maxEnd <= src.reported + 65536);  // one AVIO buffer of slack past the reported end
+  (void)reader.open(src);               // faststart mp4: may succeed with a short duration, or fail; both are fine
+  REQUIRE(src.maxEnd <= src.reported);  // reads are capped exactly at the reported size
   (void)reader.close();
 }
 
@@ -141,8 +141,8 @@ TEST_CASE("open passes libav log lines to the OpenOptions hook") {
   // An ftyp box with nothing after it: the mov demuxer probes in, then logs "moov atom not found".
   std::vector<uint8_t> ftypOnly = {0,   0,   0, 0x14, 'f', 't', 'y', 'p', 'i', 's',
                                    'o', 'm', 0, 0,    2,   0,   'i', 's', 'o', 'm'};
-  test::MemorySource zeros(std::move(ftypOnly));
+  test::MemorySource ftypSource(std::move(ftypOnly));
   MediaReader reader;
-  REQUIRE_FALSE(reader.open(zeros, opts).ok());
-  REQUIRE_FALSE(lines.empty());  // probing a text file always logs at least one error/warning line
+  REQUIRE_FALSE(reader.open(ftypSource, opts).ok());
+  REQUIRE_FALSE(lines.empty());  // a truncated mov header always logs at least one error line (moov atom not found)
 }

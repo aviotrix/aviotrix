@@ -123,3 +123,26 @@ TEST_CASE("AvioOutput on a streaming sink has no seek and still writes") {
   REQUIRE(out->closeIo().ok());
   REQUIRE(sink.bytes() == std::vector<uint8_t>{7, 8, 9});
 }
+
+TEST_CASE("AvioOutput::closeIo reports a failed final flush and still closes the sink") {
+  struct FailingSink final : aviotrix::IoSink {
+    int closes = 0;
+    bool seekable() const override { return false; }
+    aviotrix::Status open() override { return aviotrix::Status::Ok(); }
+    aviotrix::Status write(int64_t, std::span<const uint8_t>) override {
+      return aviotrix::Status::Error(aviotrix::ErrorCode::IoFailed, "sink full");
+    }
+    aviotrix::Status close() override {
+      closes++;
+      return aviotrix::Status::Ok();
+    }
+  } sink;
+  std::unique_ptr<AvioOutput> out;
+  REQUIRE(AvioOutput::create(sink, out).ok());
+  const uint8_t a[3] = {1, 2, 3};
+  avio_write(out->context(), a, 3);  // stays in the AVIO buffer; no flush yet
+  aviotrix::Status st = out->closeIo();
+  REQUIRE_FALSE(st.ok());
+  REQUIRE(st.message == "sink full");
+  REQUIRE(sink.closes == 1);
+}
