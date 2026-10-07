@@ -17,7 +17,7 @@
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test:core && npm run test --workspaces --if-present",
     "test:core": "cmake -S . -B build/core-host && cmake --build build/core-host -j && ctest --test-dir build/core-host --output-on-failure",
-    "lint:cpp": "clang-format --dry-run --Werror $(git ls-files 'core/*.cc' 'core/*.h' 'packages/*/binding/*.cc' 'packages/*/binding/*.h')"
+    "lint:cpp": "${CLANG_FORMAT:-clang-format} --dry-run --Werror $(git ls-files 'core/*.cc' 'core/*.h' 'packages/*/binding/*.cc' 'packages/*/binding/*.h')"
   },
   "devDependencies": {
     "oxlint": "^1.87.0",

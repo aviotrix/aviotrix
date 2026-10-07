@@ -35,7 +35,11 @@ jobs:
           key: ffmpeg-host-${{ matrix.platform }}-${{ hashFiles('scripts/build-ffmpeg.sh', 'scripts/ffmpeg-components.sh', '.gitmodules') }}-${{ hashFiles('third_party/ffmpeg/RELEASE') }}
       - name: Install clang tools (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y clang-format clang-tidy
+        # Pinned to LLVM 18 (Ubuntu 24.04's default). The formatting check passes identically with
+        # clang-format 18-23 for this .clang-format; clang-tidy findings can differ between majors.
+        run: |
+          sudo apt-get install -y clang-format-18 clang-tidy-18
+          echo "CLANG_FORMAT=clang-format-18" >> "$GITHUB_ENV"
       - name: Install clang tools (macOS)
         if: runner.os == 'macOS'
         run: brew install clang-format
@@ -46,7 +50,7 @@ jobs:
       - run: npm run test:core
       - name: clang-tidy (core)
         if: matrix.platform == 'linux-x64'
-        run: cmake -S . -B build/core-tidy -DAVIOTRIX_CLANG_TIDY=ON -DAVIOTRIX_BUILD_TESTS=OFF && cmake --build build/core-tidy -j
+        run: cmake -S . -B build/core-tidy -DAVIOTRIX_CLANG_TIDY=ON -DAVIOTRIX_BUILD_TESTS=OFF -DCLANG_TIDY_EXE=$(command -v clang-tidy-18) && cmake --build build/core-tidy -j
       - run: npm run build:native -w @aviotrix/node
       - run: npm run build:ts --workspaces --if-present
       - run: npm test -w @aviotrix/types

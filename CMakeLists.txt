@@ -4,7 +4,7 @@ project(aviotrix LANGUAGES C CXX)
 option(AVIOTRIX_CLANG_TIDY "Run clang-tidy during the build" OFF)
 if(AVIOTRIX_CLANG_TIDY)
   # PATH first (CI: apt clang-tidy), then Homebrew llvm, which is keg-only on macOS.
-  find_program(CLANG_TIDY_EXE NAMES clang-tidy PATHS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin REQUIRED)
+  find_program(CLANG_TIDY_EXE NAMES clang-tidy clang-tidy-18 PATHS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin REQUIRED)
   set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
 endif()
 

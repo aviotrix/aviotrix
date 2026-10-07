@@ -37,7 +37,10 @@ Status AvioInput::create(IoSource& source, std::unique_ptr<AvioInput>& out) {
 AvioInput::~AvioInput() {
   (void)closeIo();
   if (ctx_) {
-    av_freep(static_cast<void*>(&ctx_->buffer));
+    // av_free on a copy instead of av_freep(&ctx_->buffer): no uint8_t** -> void* conversion.
+    uint8_t* buffer = ctx_->buffer;
+    ctx_->buffer = nullptr;
+    av_free(buffer);
     avio_context_free(&ctx_);
   }
 }
