@@ -206,7 +206,6 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
   };
 
   if (headerWritten) {
-    ret = 0;
     while (true) {
       if (opt.cancel && opt.cancel->load(std::memory_order_relaxed)) {
         ret = AVERROR_EXIT;

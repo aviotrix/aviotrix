@@ -19,7 +19,7 @@ Status AvioInput::create(IoSource& source, std::unique_ptr<AvioInput>& out) {
   Status st = source.open(in->size_);
   if (!st.ok()) return st;
   in->sourceOpen_ = true;
-  if (in->size_ && *in->size_ < 0) in->size_.reset();
+  if (in->size_.value_or(0) < 0) in->size_.reset();  // a negative size means unknown
 
   uint8_t* buffer = static_cast<uint8_t*>(av_malloc(kBufferSize));
   if (!buffer) return Status::FromAv(AVERROR(ENOMEM), "av_malloc");
