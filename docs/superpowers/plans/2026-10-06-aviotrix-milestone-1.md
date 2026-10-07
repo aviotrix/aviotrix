@@ -112,11 +112,13 @@ aviotrix/ (repo root = worktrees/main)
 ### Task 1: Bootstrap the repository
 
 **Files:**
+
 - Create: GitHub repo `aviotrix/aviotrix`; local `~/Projects/aviotrix/` in bare-repo + worktrees layout
 - Create: `CLAUDE.md`, `.gitignore`, `.prettierrc`, `.prettierignore`, `.oxlintrc.json`, `package.json`, `tsconfig.base.json`, `scripts/check-no-unknown.sh`, `README.md`
 - Already present: `docs/superpowers/specs/2026-10-06-aviotrix-design.md` and this plan (committed at bootstrap)
 
 **Interfaces:**
+
 - Produces: repo root at `~/Projects/aviotrix/worktrees/main` (all later tasks run there); root scripts `npm run lint`, `npm run format`, `npm run typecheck`, `npm run test`, `npm run build`.
 
 - [x] **Step 1: Ask Chad for approval to create the GitHub repo, then create it with an initial README** (done 2026-10-07)
@@ -147,22 +149,26 @@ libav (FFmpeg n8.1.3, LGPL) core with Node native and WASM bindings behind a cus
 Spec: docs/superpowers/specs/2026-10-06-aviotrix-design.md
 
 ## Layout
+
 - `core/` C++20 static lib. No Node/Emscripten headers. `-fno-exceptions`.
 - `packages/types` `@aviotrix/types`, `packages/node` `@aviotrix/node`, `packages/wasm` `@aviotrix/wasm`.
 - `scripts/build-ffmpeg.sh host|wasm` builds FFmpeg into `build/ffmpeg-<target>/`.
 
 ## Rules
+
 - TypeScript 7 strict. No `any`, no `unknown`. Lint = oxlint, format = Prettier (2 spaces, semicolons).
 - A change is done only when `npm run lint && npm run typecheck && npm test && npm run build` pass.
 - Never push without explicit approval.
 
 ## Prerequisites (macOS)
+
 `brew install cmake nasm emscripten ffmpeg` (ffmpeg CLI only regenerates fixtures).
 ```
 
 - [ ] **Step 4: Write root config files**
 
 `.gitignore`:
+
 ```
 node_modules/
 dist/
@@ -172,11 +178,13 @@ build/
 ```
 
 `.prettierrc`:
+
 ```json
 { "semi": true, "singleQuote": true, "tabWidth": 2, "printWidth": 100, "trailingComma": "all" }
 ```
 
 `.prettierignore`:
+
 ```
 third_party/
 build/
@@ -185,6 +193,7 @@ fixtures/
 ```
 
 `.oxlintrc.json`:
+
 ```json
 {
   "ignorePatterns": ["dist", "build", "third_party", "node_modules"],
@@ -197,6 +206,7 @@ fixtures/
 ```
 
 `tsconfig.base.json`:
+
 ```json
 {
   "compilerOptions": {
@@ -215,6 +225,7 @@ fixtures/
 ```
 
 `scripts/check-no-unknown.sh`:
+
 ```bash
 #!/usr/bin/env bash
 # Fails if the `unknown` type keyword appears in any package source or test.
@@ -228,6 +239,7 @@ echo "ok: no 'unknown' types"
 ```
 
 `package.json` (root):
+
 ```json
 {
   "name": "aviotrix-monorepo",
@@ -273,12 +285,15 @@ libav (FFmpeg) core with a custom AVIO layer, exposed as a Node native module (`
 Design: `docs/superpowers/specs/2026-10-06-aviotrix-design.md`.
 
 ## Status
+
 Milestone 1 in progress: open via `IoSource`, read metadata, remux to `IoSink`.
 
 ## Build prerequisites
+
 macOS: `brew install cmake nasm emscripten ffmpeg`. FFmpeg pinned at `n8.1.3`, LGPL build.
 
 ## WASM size
+
 Measured in Task 11; recorded here.
 ```
 
@@ -294,9 +309,11 @@ git commit -m "Bootstrap aviotrix monorepo: workspaces, lint/format config, spec
 ### Task 2: FFmpeg submodule and host build script
 
 **Files:**
+
 - Create: `.gitmodules`, `third_party/ffmpeg` (submodule @ `n8.1.3`), `scripts/build-ffmpeg.sh`, `scripts/ffmpeg-components.sh`
 
 **Interfaces:**
+
 - Produces: `build/ffmpeg-host/lib/{libavformat,libavcodec,libavutil}.a`, `build/ffmpeg-host/include/libav*/`. Task 10 adds the `wasm` target to the same script, producing `build/ffmpeg-wasm/`.
 
 - [ ] **Step 1: Add the submodule**
@@ -312,6 +329,7 @@ Expected: `git submodule status` shows the `n8.1.3` commit.
 - [ ] **Step 2: Write the shared component list**
 
 `scripts/ffmpeg-components.sh` (sourced by the build script; the single place the enable list lives):
+
 ```bash
 # Shared FFmpeg configure component list. See spec §6.
 FFMPEG_COMMON_FLAGS=(
@@ -380,6 +398,7 @@ Expected: exactly `libavcodec.a libavformat.a libavutil.a`; configure output lis
 - [ ] **Step 5: Smoke-test the enable list (catches typos in the component list)**
 
 Write `/tmp/avx_smoke.c`:
+
 ```c
 #include <libavformat/avformat.h>
 #include <stdio.h>
@@ -413,10 +432,12 @@ git commit -m "Add FFmpeg n8.1.3 submodule and remux-only host build script"
 ### Task 3: Core skeleton: CMake, Status, IO interfaces, test harness
 
 **Files:**
+
 - Create: `CMakeLists.txt` (root), `.clang-format`, `.clang-tidy`, `core/CMakeLists.txt`, `core/include/aviotrix/status.h`, `core/include/aviotrix/io.h`, `core/include/aviotrix/log.h`, `core/src/status.cc`, `core/src/log.cc`, `core/tests/CMakeLists.txt`, `core/tests/test_status.cc`, `core/tests/file_io.h`, `core/tests/fixtures.h`
 - Modify: root `package.json` (add `test:core` and `lint:cpp` scripts)
 
 **Interfaces:**
+
 - Produces (used by every later core task):
   - `aviotrix::Status { int code; std::string message; bool ok() const; static Status Ok(); static Status FromAv(int averror, std::string_view context); static Status Error(ErrorCode, std::string); }`
   - `enum class aviotrix::ErrorCode : int { Ok=0, SinkNotSeekable=1, IncompatibleStream=2, Aborted=3, InvalidArgument=4, IoFailed=5, NotOpen=6, Unsupported=7 }`
@@ -428,6 +449,7 @@ git commit -m "Add FFmpeg n8.1.3 submodule and remux-only host build script"
 - [ ] **Step 1: Write the failing test**
 
 `core/tests/test_status.cc`:
+
 ```cpp
 #include <catch2/catch_test_macros.hpp>
 
@@ -487,6 +509,7 @@ TEST_CASE("LogLevel maps from av levels") {
 - [ ] **Step 2: Write the CMake files**
 
 Root `CMakeLists.txt`:
+
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 project(aviotrix LANGUAGES C CXX)
@@ -544,6 +567,7 @@ endif()
 ```
 
 `core/CMakeLists.txt` (sources are appended by later tasks):
+
 ```cmake
 add_library(aviotrix_core STATIC
   src/status.cc
@@ -554,6 +578,7 @@ target_link_libraries(aviotrix_core PUBLIC ffmpeg::avformat)
 ```
 
 `core/tests/CMakeLists.txt`:
+
 ```cmake
 include(FetchContent)
 FetchContent_Declare(Catch2
@@ -581,6 +606,7 @@ Expected: FAIL, `aviotrix/status.h: No such file or directory`.
 - [ ] **Step 4: Write the headers**
 
 `core/include/aviotrix/status.h`:
+
 ```cpp
 #pragma once
 
@@ -619,6 +645,7 @@ std::string errorCodeName(int code);
 ```
 
 `core/include/aviotrix/io.h`:
+
 ```cpp
 #pragma once
 
@@ -656,6 +683,7 @@ class IoSink {
 ```
 
 `core/include/aviotrix/log.h`:
+
 ```cpp
 #pragma once
 
@@ -677,6 +705,7 @@ LogLevel logLevelFromAv(int avLevel);      // AV_LOG_* -> LogLevel
 - [ ] **Step 5: Write the implementations**
 
 `core/src/status.cc`:
+
 ```cpp
 #include "aviotrix/status.h"
 
@@ -767,6 +796,7 @@ std::string errorCodeName(int code) {
 ```
 
 `core/src/log.cc`:
+
 ```cpp
 #include "aviotrix/log.h"
 
@@ -809,6 +839,7 @@ LogLevel logLevelFromAv(int avLevel) {
 - [ ] **Step 6: Write the test helpers (used from Task 5 onward)**
 
 `core/tests/fixtures.h`:
+
 ```cpp
 #pragma once
 #include <string>
@@ -821,6 +852,7 @@ inline std::string fixturePath(const char* name) {
 ```
 
 `core/tests/file_io.h`:
+
 ```cpp
 #pragma once
 
@@ -926,6 +958,7 @@ Expected: `100% tests passed, 0 tests failed out of 5`.
 - [ ] **Step 8: Add C++ formatting and static-analysis config**
 
 `.clang-format`:
+
 ```yaml
 BasedOnStyle: Google
 ColumnLimit: 120
@@ -936,6 +969,7 @@ AllowShortFunctionsOnASingleLine: Inline
 ```
 
 `.clang-tidy`:
+
 ```yaml
 Checks: 'bugprone-*,performance-*,modernize-use-nullptr,modernize-use-override,readability-container-size-empty,-bugprone-easily-swappable-parameters'
 WarningsAsErrors: 'bugprone-*,performance-*'
@@ -943,6 +977,7 @@ HeaderFilterRegex: '(core|packages/(node|wasm)/binding)/'
 ```
 
 Root `CMakeLists.txt`, after the `project()` line:
+
 ```cmake
 option(AVIOTRIX_CLANG_TIDY "Run clang-tidy during the build" OFF)
 if(AVIOTRIX_CLANG_TIDY)
@@ -956,10 +991,12 @@ Run `clang-format -i $(git ls-files 'core/*.cc' 'core/*.h')` once, then verify `
 - [ ] **Step 9: Add the npm scripts and commit**
 
 Add to root `package.json` scripts:
+
 ```json
 "test:core": "cmake -S . -B build/core-host && cmake --build build/core-host -j && ctest --test-dir build/core-host --output-on-failure",
 "lint:cpp": "clang-format --dry-run --Werror $(git ls-files 'core/*.cc' 'core/*.h' 'packages/*/binding/*.cc' 'packages/*/binding/*.h')"
 ```
+
 Change `"lint"` to `"oxlint --deny-warnings && bash scripts/check-no-unknown.sh && prettier --check . && npm run lint:cpp"` and `"test"` to `"npm run test:core && npm run test --workspaces --if-present"`.
 
 ```bash
@@ -973,14 +1010,17 @@ git commit -m "Add core skeleton: Status, IoSource/IoSink, log levels, Catch2 ha
 ### Task 4: Test fixtures
 
 **Files:**
+
 - Create: `scripts/make-fixtures.sh`, `fixtures/h264-aac.mp4`, `fixtures/vp9-opus.webm`, `fixtures/h264-ac3.ts`, `fixtures/h264-aac-srt.mkv`, `fixtures/subs.srt`, `fixtures/not-media.txt`, `fixtures/README.md`
 
 **Interfaces:**
+
 - Produces: the fixture files above, each 3 seconds, 320x240 at 30 fps, 48 kHz audio. Later tests assert: 2 streams in the first three files (video index 0, audio index 1), 3 streams in the mkv (subtitle index 2), video `320x240`, duration between 2.9 and 3.2 s.
 
 - [ ] **Step 1: Write the generator**
 
 `scripts/make-fixtures.sh`:
+
 ```bash
 #!/usr/bin/env bash
 # Regenerates fixtures/ with the system ffmpeg. Developer-only; never run at build or install.
@@ -1039,12 +1079,14 @@ du -ch fixtures/* | tail -1
 ```
 
 Expected:
+
 ```
 h264-aac.mp4: h264,video aac,audio
 vp9-opus.webm: vp9,video opus,audio
 h264-ac3.ts: h264,video ac3,audio
 h264-aac-srt.mkv: h264,video aac,audio subrip,subtitle
 ```
+
 Total under 1 MB.
 
 - [ ] **Step 3: Write `fixtures/README.md`**
@@ -1054,13 +1096,13 @@ Total under 1 MB.
 
 Generated by `scripts/make-fixtures.sh` with the system ffmpeg. 3 s, 320x240 @ 30 fps, 48 kHz.
 
-| File | Streams | Purpose |
-|---|---|---|
-| h264-aac.mp4 | h264, aac | MP4 input; remux to Matroska and TS |
-| vp9-opus.webm | vp9, opus | Matroska demuxer; WebM muxer round trip |
-| h264-ac3.ts | h264, ac3 | MPEG-TS input exercising parsers and Annex B -> MP4 |
-| h264-aac-srt.mkv | h264, aac, subrip | Subtitle incompatible with MP4: skip/fail path |
-| not-media.txt | none | Non-media input must fail cleanly |
+| File             | Streams           | Purpose                                             |
+| ---------------- | ----------------- | --------------------------------------------------- |
+| h264-aac.mp4     | h264, aac         | MP4 input; remux to Matroska and TS                 |
+| vp9-opus.webm    | vp9, opus         | Matroska demuxer; WebM muxer round trip             |
+| h264-ac3.ts      | h264, ac3         | MPEG-TS input exercising parsers and Annex B -> MP4 |
+| h264-aac-srt.mkv | h264, aac, subrip | Subtitle incompatible with MP4: skip/fail path      |
+| not-media.txt    | none              | Non-media input must fail cleanly                   |
 ```
 
 - [ ] **Step 4: Commit**
@@ -1075,10 +1117,12 @@ git commit -m "Add media test fixtures and their generator script"
 ### Task 5: Core AVIO adapters, log routing, metadata, JSON, `MediaReader::open`
 
 **Files:**
+
 - Create: `core/include/aviotrix/metadata.h`, `core/include/aviotrix/media_reader.h`, `core/include/aviotrix/json.h`, `core/src/avio_input.h`, `core/src/avio_input.cc`, `core/src/avio_output.h`, `core/src/avio_output.cc`, `core/src/log_router.h`, `core/src/log_router.cc`, `core/src/metadata.cc`, `core/src/json.cc`, `core/src/media_reader.cc`, `core/tests/test_avio.cc`, `core/tests/test_metadata.cc`, `core/tests/test_json.cc`
 - Modify: `core/CMakeLists.txt`, `core/tests/CMakeLists.txt`
 
 **Interfaces:**
+
 - Consumes: Task 3 `Status`, `IoSource`, `IoSink`, `LogHook`; Task 4 fixtures.
 - Produces:
   - `aviotrix::Metadata`, `StreamInfo`, `VideoStreamInfo`, `AudioStreamInfo`, `Rational`, `StreamType`, `const char* streamTypeName(StreamType)`
@@ -1091,6 +1135,7 @@ git commit -m "Add media test fixtures and their generator script"
 - [ ] **Step 1: Write the failing tests**
 
 `core/tests/test_avio.cc`:
+
 ```cpp
 #include <catch2/catch_test_macros.hpp>
 
@@ -1214,6 +1259,7 @@ TEST_CASE("AvioOutput on a streaming sink has no seek and still writes") {
 ```
 
 `core/tests/test_metadata.cc`:
+
 ```cpp
 #include <catch2/catch_test_macros.hpp>
 
@@ -1357,6 +1403,7 @@ TEST_CASE("open passes libav log lines to the OpenOptions hook") {
 ```
 
 `core/tests/test_json.cc`:
+
 ```cpp
 #include <catch2/catch_test_macros.hpp>
 
@@ -1406,6 +1453,7 @@ Expected: FAIL with missing headers `avio_input.h`, `aviotrix/media_reader.h`, `
 - [ ] **Step 3: Write the public headers**
 
 `core/include/aviotrix/metadata.h`:
+
 ```cpp
 #pragma once
 
@@ -1467,6 +1515,7 @@ struct Metadata {
 ```
 
 `core/include/aviotrix/media_reader.h` (the `remux` declaration is added in Task 6):
+
 ```cpp
 #pragma once
 
@@ -1505,6 +1554,7 @@ class MediaReader {
 ```
 
 `core/include/aviotrix/json.h`:
+
 ```cpp
 #pragma once
 
@@ -1550,6 +1600,7 @@ std::string toJson(const Metadata& metadata);
 - [ ] **Step 4: Write the AVIO adapters**
 
 `core/src/avio_input.h`:
+
 ```cpp
 #pragma once
 
@@ -1601,6 +1652,7 @@ class AvioInput {
 ```
 
 `core/src/avio_input.cc`:
+
 ```cpp
 #include "avio_input.h"
 
@@ -1693,6 +1745,7 @@ int64_t AvioInput::seek(void* opaque, int64_t offset, int whence) {
 ```
 
 `core/src/avio_output.h`:
+
 ```cpp
 #pragma once
 
@@ -1739,6 +1792,7 @@ class AvioOutput {
 ```
 
 `core/src/avio_output.cc`:
+
 ```cpp
 #include "avio_output.h"
 
@@ -1827,6 +1881,7 @@ int64_t AvioOutput::seek(void* opaque, int64_t offset, int whence) {
 - [ ] **Step 5: Write the log router**
 
 `core/src/log_router.h`:
+
 ```cpp
 #pragma once
 
@@ -1856,6 +1911,7 @@ class ScopedLogTarget {
 ```
 
 `core/src/log_router.cc`:
+
 ```cpp
 #include "log_router.h"
 
@@ -1920,6 +1976,7 @@ ScopedLogTarget::~ScopedLogTarget() {
 - [ ] **Step 6: Write metadata extraction, JSON, and MediaReader**
 
 `core/src/metadata.cc` (also declares the internal `readMetadata` used by media_reader.cc):
+
 ```cpp
 #include "aviotrix/metadata.h"
 
@@ -2037,6 +2094,7 @@ Metadata readMetadata(const AVFormatContext* fmt) {
 ```
 
 `core/src/metadata_internal.h`:
+
 ```cpp
 #pragma once
 
@@ -2050,6 +2108,7 @@ Metadata readMetadata(const AVFormatContext* fmt);
 ```
 
 `core/src/json.cc`:
+
 ```cpp
 #include "aviotrix/json.h"
 
@@ -2193,6 +2252,7 @@ std::string toJson(const Metadata& m) {
 ```
 
 `core/src/media_reader_impl.h` (shared with remux.cc in Task 6):
+
 ```cpp
 #pragma once
 
@@ -2225,6 +2285,7 @@ struct MediaReader::Impl {
 ```
 
 `core/src/media_reader.cc`:
+
 ```cpp
 #include "aviotrix/media_reader.h"
 
@@ -2304,10 +2365,12 @@ git commit -m "Add core AVIO adapters, log routing, metadata extraction, JSON wr
 ### Task 6: Core remux
 
 **Files:**
+
 - Create: `core/include/aviotrix/remux.h`, `core/src/remux.cc`, `core/tests/test_remux.cc`
 - Modify: `core/include/aviotrix/media_reader.h` (add `remux`), `core/include/aviotrix/json.h` + `core/src/json.cc` (add `toJson(const RemuxResult&)`), `core/src/media_reader_impl.h` (add `bool consumed`), `core/tests/file_io.h` (add `opened()` to `MemorySink`), `core/CMakeLists.txt`, `core/tests/CMakeLists.txt`
 
 **Interfaces:**
+
 - Consumes: Task 5 `MediaReader::Impl`, `AvioInput`, `AvioOutput`, `ScopedLogTarget`, `JsonWriter`.
 - Produces:
   - `aviotrix::RemuxProgress { int64_t bytesRead; int64_t bytesWritten; std::optional<double> timestamp; }`
@@ -2323,6 +2386,7 @@ git commit -m "Add core AVIO adapters, log routing, metadata extraction, JSON wr
 Add to `test::MemorySink` in `core/tests/file_io.h`: `bool opened() const { return opened_; }`.
 
 `core/tests/test_remux.cc`:
+
 ```cpp
 #include <catch2/catch_test_macros.hpp>
 
@@ -2638,6 +2702,7 @@ Expected: `fatal error: 'aviotrix/remux.h' file not found`.
 - [ ] **Step 3: Write `remux.h` and extend `media_reader.h`, `json.h`, `media_reader_impl.h`**
 
 `core/include/aviotrix/remux.h`:
+
 ```cpp
 #pragma once
 
@@ -2683,12 +2748,14 @@ struct RemuxResult {
 ```
 
 In `media_reader.h` add `#include "aviotrix/remux.h"` and, after `metadata()`:
+
 ```cpp
   // Stream-copies the selected streams into `sink`. See remux.h for the error contract.
   Status remux(IoSink& sink, const RemuxOptions& options, RemuxResult& result);
 ```
 
 In `json.h` add `#include "aviotrix/remux.h"` and `std::string toJson(const RemuxResult& result);`. In `json.cc` append:
+
 ```cpp
 std::string toJson(const RemuxResult& r) {
   JsonWriter w;
@@ -2903,6 +2970,7 @@ npm run test:core
 ```
 
 Expected: every test passes. Known places to look if not:
+
 - `all streams incompatible` failing with success: `avformat_query_codec` returned non-zero for h264 on webm. Check `ofmt->name` is `webm` (not `matroska`); webm has `query_codec`.
 - `mpegts to mp4` failing in `avformat_write_header` with "extradata": the `extract_extradata` bsf is missing from the FFmpeg build; re-check `scripts/ffmpeg-components.sh` and rebuild (`rm -rf build/ffmpeg-host*`).
 - `sink write failure` message mismatch: `AvioOutput::closeIo` may overwrite `lastError_`; it must only set it when `lastError_.ok()` (as written).
@@ -2919,9 +2987,11 @@ git commit -m "Add core remux with stream selection, incompatibility handling, f
 ### Task 7: `@aviotrix/types` package
 
 **Files:**
+
 - Create: `packages/types/package.json`, `packages/types/tsconfig.json`, `packages/types/vitest.config.ts`, `packages/types/src/index.ts`, `packages/types/src/io.ts`, `packages/types/src/log.ts`, `packages/types/src/metadata.ts`, `packages/types/src/remux.ts`, `packages/types/src/error.ts`, `packages/types/src/parse.ts`, `packages/types/tests/error.test.ts`, `packages/types/tests/parse.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from other packages.
 - Produces (imported by Tasks 9 and 12): every type in spec §4 verbatim, plus
   - `class AviotrixError extends Error { readonly code: string; constructor(code: string, message: string) }`
@@ -2932,6 +3002,7 @@ git commit -m "Add core remux with stream selection, incompatibility handling, f
 - [ ] **Step 1: Write the failing tests**
 
 `packages/types/tests/error.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import { AviotrixError, toAviotrixError } from '../src/index.js';
@@ -2947,7 +3018,10 @@ describe('AviotrixError', () => {
   });
 
   it('converts a native failure record', () => {
-    const e = toAviotrixError({ code: 'AVERROR_INVALIDDATA', message: 'avformat_open_input: Invalid data' });
+    const e = toAviotrixError({
+      code: 'AVERROR_INVALIDDATA',
+      message: 'avformat_open_input: Invalid data',
+    });
     expect(e.code).toBe('AVERROR_INVALIDDATA');
     expect(e.message).toContain('Invalid data');
   });
@@ -2955,6 +3029,7 @@ describe('AviotrixError', () => {
 ```
 
 `packages/types/tests/parse.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import { AviotrixError, parseMetadataJson, parseRemuxResultJson } from '../src/index.js';
@@ -3018,6 +3093,7 @@ describe('parseRemuxResultJson', () => {
 - [ ] **Step 2: Write package config**
 
 `packages/types/package.json`:
+
 ```json
 {
   "name": "@aviotrix/types",
@@ -3037,6 +3113,7 @@ describe('parseRemuxResultJson', () => {
 ```
 
 `packages/types/tsconfig.json`:
+
 ```json
 {
   "extends": "../../tsconfig.base.json",
@@ -3046,6 +3123,7 @@ describe('parseRemuxResultJson', () => {
 ```
 
 `packages/types/vitest.config.ts`:
+
 ```ts
 import { defineConfig } from 'vitest/config';
 export default defineConfig({ test: { include: ['tests/**/*.test.ts'] } });
@@ -3062,6 +3140,7 @@ Expected: FAIL, cannot resolve `../src/index.js`.
 - [ ] **Step 4: Write the sources**
 
 `packages/types/src/io.ts`:
+
 ```ts
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -3084,17 +3163,10 @@ export interface IoSink {
 ```
 
 `packages/types/src/log.ts`:
+
 ```ts
 export type LogLevel =
-  | 'quiet'
-  | 'panic'
-  | 'fatal'
-  | 'error'
-  | 'warning'
-  | 'info'
-  | 'verbose'
-  | 'debug'
-  | 'trace';
+  'quiet' | 'panic' | 'fatal' | 'error' | 'warning' | 'info' | 'verbose' | 'debug' | 'trace';
 
 export type LogFn = (level: LogLevel, text: string) => void;
 
@@ -3104,6 +3176,7 @@ export interface OpenOptions {
 ```
 
 `packages/types/src/metadata.ts`:
+
 ```ts
 export interface Rational {
   num: number;
@@ -3152,6 +3225,7 @@ export interface Metadata {
 ```
 
 `packages/types/src/remux.ts`:
+
 ```ts
 export interface RemuxProgress {
   bytesRead: number;
@@ -3187,6 +3261,7 @@ export interface RemuxResult {
 ```
 
 `packages/types/src/error.ts`:
+
 ```ts
 export class AviotrixError extends Error {
   readonly code: string;
@@ -3209,14 +3284,27 @@ export function toAviotrixError(failure: NativeFailure): AviotrixError {
 }
 
 export function isNativeFailure(value: object): value is NativeFailure {
-  return 'code' in value && 'message' in value && typeof value.code === 'string' && typeof value.message === 'string';
+  return (
+    'code' in value &&
+    'message' in value &&
+    typeof value.code === 'string' &&
+    typeof value.message === 'string'
+  );
 }
 ```
 
 `packages/types/src/parse.ts` (runtime validation of the core's JSON, so `JSON.parse`'s `any` never escapes):
+
 ```ts
 import { AviotrixError } from './error.js';
-import type { AudioStreamInfo, Metadata, Rational, StreamInfo, StreamType, VideoStreamInfo } from './metadata.js';
+import type {
+  AudioStreamInfo,
+  Metadata,
+  Rational,
+  StreamInfo,
+  StreamType,
+  VideoStreamInfo,
+} from './metadata.js';
 import type { RemuxResult, RemuxStreamMapping } from './remux.js';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -3235,7 +3323,8 @@ function parseJson(text: string): JsonValue {
 }
 
 function obj(v: JsonValue, what: string): JsonObject {
-  if (v === null || typeof v !== 'object' || Array.isArray(v)) throw malformed(`${what} is not an object`);
+  if (v === null || typeof v !== 'object' || Array.isArray(v))
+    throw malformed(`${what} is not an object`);
   return v;
 }
 function arr(v: JsonValue | undefined, what: string): JsonValue[] {
@@ -3273,7 +3362,13 @@ function rationalOrNull(v: JsonValue | undefined, what: string): Rational | null
   return rational(v, what);
 }
 
-const streamTypes: ReadonlySet<string> = new Set(['video', 'audio', 'subtitle', 'data', 'attachment']);
+const streamTypes: ReadonlySet<string> = new Set([
+  'video',
+  'audio',
+  'subtitle',
+  'data',
+  'attachment',
+]);
 
 function streamType(v: JsonValue | undefined, what: string): StreamType {
   const s = str(v, what);
@@ -3328,7 +3423,9 @@ export function parseMetadataJson(text: string): Metadata {
     duration: numOrNull(o['duration'], 'metadata.duration'),
     bitRate: numOrNull(o['bitRate'], 'metadata.bitRate'),
     tags: tags(o['tags'], 'metadata.tags'),
-    streams: arr(o['streams'], 'metadata.streams').map((s, i) => stream(s, `metadata.streams[${i}]`)),
+    streams: arr(o['streams'], 'metadata.streams').map((s, i) =>
+      stream(s, `metadata.streams[${i}]`),
+    ),
   };
 }
 
@@ -3347,7 +3444,9 @@ function mapping(v: JsonValue, what: string): RemuxStreamMapping {
 export function parseRemuxResultJson(text: string): RemuxResult {
   const o = obj(parseJson(text), 'remuxResult');
   return {
-    streams: arr(o['streams'], 'remuxResult.streams').map((s, i) => mapping(s, `remuxResult.streams[${i}]`)),
+    streams: arr(o['streams'], 'remuxResult.streams').map((s, i) =>
+      mapping(s, `remuxResult.streams[${i}]`),
+    ),
     bytesRead: num(o['bytesRead'], 'remuxResult.bytesRead'),
     bytesWritten: num(o['bytesWritten'], 'remuxResult.bytesWritten'),
     packets: num(o['packets'], 'remuxResult.packets'),
@@ -3356,6 +3455,7 @@ export function parseRemuxResultJson(text: string): RemuxResult {
 ```
 
 `packages/types/src/index.ts`:
+
 ```ts
 export type { IoSink, IoSource, MaybePromise } from './io.js';
 export type { LogFn, LogLevel, OpenOptions } from './log.js';
@@ -3394,9 +3494,11 @@ git commit -m "Add @aviotrix/types: IO contract, metadata and remux types, Aviot
 ### Task 8: Node native binding (N-API)
 
 **Files:**
+
 - Create: `packages/node/package.json`, `packages/node/tsconfig.json`, `packages/node/vitest.config.ts`, `packages/node/CMakeLists.txt`, `packages/node/binding/main_thread_bridge.h`, `packages/node/binding/main_thread_bridge.cc`, `packages/node/binding/js_io.h`, `packages/node/binding/js_io.cc`, `packages/node/binding/native_reader.h`, `packages/node/binding/native_reader.cc`, `packages/node/binding/addon.cc`, `packages/node/src/native.ts`, `packages/node/tests/native.test.ts`
 
 **Interfaces:**
+
 - Consumes: core `MediaReader`, `IoSource`, `IoSink`, `Status`, `errorCodeName`, `toJson`, `LogLevel`/`logLevelName`.
 - Produces: the raw addon, loaded by `src/native.ts` as `NativeModule`:
   ```ts
@@ -3410,14 +3512,23 @@ git commit -m "Add @aviotrix/types: IO contract, metadata and remux types, Aviot
     onLog(level: string, text: string): void;
     onProgress(bytesRead: number, bytesWritten: number, timestamp: number | null): void;
   }
-  interface NativeRemuxOptions { format: string; streams?: number[]; failOnIncompatible: boolean; fragmented: boolean; sinkSeekable: boolean; progressIntervalPackets: number; }
+  interface NativeRemuxOptions {
+    format: string;
+    streams?: number[];
+    failOnIncompatible: boolean;
+    fragmented: boolean;
+    sinkSeekable: boolean;
+    progressIntervalPackets: number;
+  }
   interface NativeReader {
-    open(): Promise<string>;                               // metadata JSON
-    remux(options: NativeRemuxOptions): Promise<string>;   // RemuxResult JSON
+    open(): Promise<string>; // metadata JSON
+    remux(options: NativeRemuxOptions): Promise<string>; // RemuxResult JSON
     cancel(): void;
     close(): Promise<void>;
   }
-  interface NativeModule { NativeReader: new (host: NativeHost) => NativeReader; }
+  interface NativeModule {
+    NativeReader: new (host: NativeHost) => NativeReader;
+  }
   ```
   Rejections are `Error` objects with a string `code` property (`errorCodeName` of the core status, or `IO_FAILED` when a host callback threw/rejected, carrying that callback's message).
 - Threading contract: each `NativeReader` owns one `std::thread`. `open`/`remux`/`close` run there; every host callback runs on the JS main thread via a `TypedThreadSafeFunction`; the worker blocks until the callback's Promise settles. `cancel()` is synchronous and thread-safe.
@@ -3425,15 +3536,19 @@ git commit -m "Add @aviotrix/types: IO contract, metadata and remux types, Aviot
 - [ ] **Step 1: Write the failing test (drives the raw addon with a hand-rolled host)**
 
 `packages/node/tests/native.test.ts`:
+
 ```ts
 import { open as fsOpen } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { native, type NativeHost } from '../src/native.js';
 
-const fixture = (name: string): string => fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url));
+const fixture = (name: string): string =>
+  fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url));
 
-async function fileHost(path: string): Promise<{ host: NativeHost; output: () => Uint8Array; closes: () => number }> {
+async function fileHost(
+  path: string,
+): Promise<{ host: NativeHost; output: () => Uint8Array; closes: () => number }> {
   const fh = await fsOpen(path, 'r');
   const chunks: Array<{ offset: number; data: Uint8Array }> = [];
   let closes = 0;
@@ -3501,7 +3616,10 @@ describe('native addon', () => {
   it('rejects with a coded error on non-media input', async () => {
     const { host } = await fileHost(fixture('not-media.txt'));
     const reader = new native.NativeReader(host);
-    await expect(reader.open()).rejects.toMatchObject({ code: 'AVERROR_INVALIDDATA', message: expect.stringContaining('avformat_open_input') });
+    await expect(reader.open()).rejects.toMatchObject({
+      code: 'AVERROR_INVALIDDATA',
+      message: expect.stringContaining('avformat_open_input'),
+    });
     await reader.close();
   });
 
@@ -3517,7 +3635,10 @@ describe('native addon', () => {
       onProgress() {},
     };
     const reader = new native.NativeReader(host);
-    await expect(reader.open()).rejects.toMatchObject({ code: 'IO_FAILED', message: 'network down' });
+    await expect(reader.open()).rejects.toMatchObject({
+      code: 'IO_FAILED',
+      message: 'network down',
+    });
     await reader.close();
   });
 
@@ -3527,7 +3648,13 @@ describe('native addon', () => {
     host.onProgress = () => reader.cancel();
     await reader.open();
     await expect(
-      reader.remux({ format: 'matroska', failOnIncompatible: false, fragmented: false, sinkSeekable: true, progressIntervalPackets: 5 }),
+      reader.remux({
+        format: 'matroska',
+        failOnIncompatible: false,
+        fragmented: false,
+        sinkSeekable: true,
+        progressIntervalPackets: 5,
+      }),
     ).rejects.toMatchObject({ code: 'ABORTED' });
     await reader.close();
   });
@@ -3537,6 +3664,7 @@ describe('native addon', () => {
 - [ ] **Step 2: Write package config and `src/native.ts`**
 
 `packages/node/package.json`:
+
 ```json
 {
   "name": "@aviotrix/node",
@@ -3567,6 +3695,7 @@ describe('native addon', () => {
 ```
 
 `packages/node/tsconfig.json`:
+
 ```json
 {
   "extends": "../../tsconfig.base.json",
@@ -3576,12 +3705,14 @@ describe('native addon', () => {
 ```
 
 `packages/node/vitest.config.ts`:
+
 ```ts
 import { defineConfig } from 'vitest/config';
 export default defineConfig({ test: { include: ['tests/**/*.test.ts'], testTimeout: 30000 } });
 ```
 
 `packages/node/src/native.ts`:
+
 ```ts
 import { createRequire } from 'node:module';
 import type { MaybePromise } from '@aviotrix/types';
@@ -3629,7 +3760,9 @@ function loadNative(): NativeModule {
       lastError = e instanceof Error ? e : new Error(String(e));
     }
   }
-  throw new Error(`@aviotrix/node: native addon not found (${lastError?.message ?? 'no candidates'}). Run npm run build:native.`);
+  throw new Error(
+    `@aviotrix/node: native addon not found (${lastError?.message ?? 'no candidates'}). Run npm run build:native.`,
+  );
 }
 
 export const native: NativeModule = loadNative();
@@ -3646,6 +3779,7 @@ Expected: FAIL, `native addon not found`.
 - [ ] **Step 4: Write the CMake file for the addon**
 
 `packages/node/CMakeLists.txt` (a standalone project: cmake-js runs it from `packages/node`, and it pulls in the repo root, which provides FFmpeg and `aviotrix_core`):
+
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 project(aviotrix_node LANGUAGES C CXX)
@@ -3678,6 +3812,7 @@ target_link_libraries(aviotrix_node PRIVATE aviotrix_core ${CMAKE_JS_LIB})
 - [ ] **Step 5: Write the main-thread bridge**
 
 `packages/node/binding/main_thread_bridge.h`:
+
 ```cpp
 #pragma once
 
@@ -3770,6 +3905,7 @@ class MainThreadBridge {
 ```
 
 `packages/node/binding/main_thread_bridge.cc`:
+
 ```cpp
 #include "main_thread_bridge.h"
 
@@ -3949,6 +4085,7 @@ void MainThreadBridge::handleIo(Napi::Env env, Context* ctx, IoRequest* req) {
 - [ ] **Step 6: Write the JS-backed IoSource/IoSink**
 
 `packages/node/binding/js_io.h`:
+
 ```cpp
 #pragma once
 
@@ -3985,6 +4122,7 @@ class JsIoSink final : public aviotrix::IoSink {
 ```
 
 `packages/node/binding/js_io.cc`:
+
 ```cpp
 #include "js_io.h"
 
@@ -4036,6 +4174,7 @@ Note: `IoRequest` holds a `std::mutex`, so it is not copyable; the aggregate ini
 - [ ] **Step 7: Write the reader (worker thread + core)**
 
 `packages/node/binding/native_reader.h`:
+
 ```cpp
 #pragma once
 
@@ -4089,6 +4228,7 @@ class NativeReader : public Napi::ObjectWrap<NativeReader> {
 ```
 
 `packages/node/binding/native_reader.cc`:
+
 ```cpp
 #include "native_reader.h"
 
@@ -4228,6 +4368,7 @@ Napi::Value NativeReader::Close(const Napi::CallbackInfo& info) {
 ```
 
 `packages/node/binding/addon.cc`:
+
 ```cpp
 #include <napi.h>
 
@@ -4266,10 +4407,12 @@ git commit -m "Add Node N-API binding: per-reader worker thread, thread-safe hos
 ### Task 9: `@aviotrix/node` TypeScript wrapper and reference IO
 
 **Files:**
+
 - Create: `packages/node/src/index.ts`, `packages/node/src/media_reader.ts`, `packages/node/src/host.ts`, `packages/node/src/queue.ts`, `packages/node/src/errors.ts`, `packages/node/src/io/file_source.ts`, `packages/node/src/io/file_sink.ts`, `packages/node/src/io/memory_sink.ts`, `packages/node/tests/helpers/memory_source.ts`, `packages/node/tests/helpers/adversarial_source.ts`, `packages/node/tests/helpers/fixtures.ts`, `packages/node/tests/metadata.test.ts`, `packages/node/tests/remux.test.ts`, `packages/node/tests/io.test.ts`
 - Modify: `packages/node/tsconfig.json` (add `"lib": ["es2023", "esnext.disposable"]`)
 
 **Interfaces:**
+
 - Consumes: Task 8 `native`, `NativeHost`, `NativeReader`, `NativeRemuxOptions`; Task 7 types and parsers.
 - Produces (the spec §5 public API):
   - `class MediaReader { static open(source: IoSource, options?: OpenOptions): Promise<MediaReader>; readonly metadata: Metadata; remux(sink: IoSink, options: RemuxOptions): Promise<RemuxResult>; close(): Promise<void>; [Symbol.asyncDispose](): Promise<void>; }`
@@ -4281,6 +4424,7 @@ git commit -m "Add Node N-API binding: per-reader worker thread, thread-safe hos
 - [ ] **Step 1: Write the test helpers**
 
 `packages/node/tests/helpers/fixtures.ts`:
+
 ```ts
 import { fileURLToPath } from 'node:url';
 export const fixture = (name: string): string =>
@@ -4288,6 +4432,7 @@ export const fixture = (name: string): string =>
 ```
 
 `packages/node/tests/helpers/memory_source.ts`:
+
 ```ts
 import type { IoSource } from '@aviotrix/types';
 
@@ -4304,6 +4449,7 @@ export class MemorySource implements IoSource {
 ```
 
 `packages/node/tests/helpers/adversarial_source.ts` (short reads, random delays, optional over-long reads):
+
 ```ts
 import { readFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -4342,6 +4488,7 @@ export class AdversarialSource implements IoSource {
 - [ ] **Step 2: Write the failing tests**
 
 `packages/node/tests/metadata.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import { AviotrixError, FileSource, MediaReader, readMetadata } from '../src/index.js';
@@ -4368,14 +4515,22 @@ describe('readMetadata', () => {
   });
 
   it('rejects non-media input with an AviotrixError', async () => {
-    await expect(readMetadata(new FileSource(fixture('not-media.txt')))).rejects.toBeInstanceOf(AviotrixError);
-    await expect(readMetadata(new FileSource(fixture('not-media.txt')))).rejects.toMatchObject({ code: 'AVERROR_INVALIDDATA' });
-    await expect(readMetadata(new MemorySource(new Uint8Array(0)))).rejects.toBeInstanceOf(AviotrixError);
+    await expect(readMetadata(new FileSource(fixture('not-media.txt')))).rejects.toBeInstanceOf(
+      AviotrixError,
+    );
+    await expect(readMetadata(new FileSource(fixture('not-media.txt')))).rejects.toMatchObject({
+      code: 'AVERROR_INVALIDDATA',
+    });
+    await expect(readMetadata(new MemorySource(new Uint8Array(0)))).rejects.toBeInstanceOf(
+      AviotrixError,
+    );
   });
 
   it('delivers libav log lines to onLog', async () => {
     const lines: string[] = [];
-    await readMetadata(new MemorySource(new Uint8Array(4096)), { onLog: (_level, text) => lines.push(text) }).catch(() => undefined);
+    await readMetadata(new MemorySource(new Uint8Array(4096)), {
+      onLog: (_level, text) => lines.push(text),
+    }).catch(() => undefined);
     expect(lines.length).toBeGreaterThan(0);
   });
 
@@ -4397,13 +4552,22 @@ describe('readMetadata', () => {
 ```
 
 `packages/node/tests/remux.test.ts`:
+
 ```ts
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { IoSink } from '@aviotrix/types';
-import { AviotrixError, FileSink, FileSource, MediaReader, MemorySink, readMetadata, remux } from '../src/index.js';
+import {
+  AviotrixError,
+  FileSink,
+  FileSource,
+  MediaReader,
+  MemorySink,
+  readMetadata,
+  remux,
+} from '../src/index.js';
 import { AdversarialSource } from './helpers/adversarial_source.js';
 import { fixture } from './helpers/fixtures.js';
 import { MemorySource } from './helpers/memory_source.js';
@@ -4419,7 +4583,9 @@ afterAll(async () => {
 describe('remux', () => {
   it('mp4 -> matroska into MemorySink, reopenable', async () => {
     const sink = new MemorySink();
-    const result = await remux(new FileSource(fixture('h264-aac.mp4')), sink, { format: 'matroska' });
+    const result = await remux(new FileSource(fixture('h264-aac.mp4')), sink, {
+      format: 'matroska',
+    });
     expect(result.streams).toEqual([
       { input: 0, output: 0 },
       { input: 1, output: 1 },
@@ -4449,9 +4615,15 @@ describe('remux', () => {
     });
     const sink = new MemorySink();
     const result = await reader.remux(sink, { format: 'mp4' });
-    expect(result.streams[2]).toEqual({ input: 2, output: null, skippedReason: expect.stringContaining('subrip') });
+    expect(result.streams[2]).toEqual({
+      input: 2,
+      output: null,
+      skippedReason: expect.stringContaining('subrip'),
+    });
     expect(warnings.some((w) => w.includes('subrip'))).toBe(true);
-    await expect(reader.remux(new MemorySink(), { format: 'mp4', onIncompatibleStream: 'fail' })).rejects.toMatchObject({
+    await expect(
+      reader.remux(new MemorySink(), { format: 'mp4', onIncompatibleStream: 'fail' }),
+    ).rejects.toMatchObject({
       code: 'INCOMPATIBLE_STREAM',
     });
     await reader.close();
@@ -4460,7 +4632,9 @@ describe('remux', () => {
   it('non-seekable sink needs fragmented for mp4', async () => {
     const reader = await MediaReader.open(new FileSource(fixture('h264-aac.mp4')));
     const streaming = new MemorySink({ seekable: false });
-    await expect(reader.remux(streaming, { format: 'mp4' })).rejects.toMatchObject({ code: 'SINK_NOT_SEEKABLE' });
+    await expect(reader.remux(streaming, { format: 'mp4' })).rejects.toMatchObject({
+      code: 'SINK_NOT_SEEKABLE',
+    });
     expect(streaming.bytes().length).toBe(0);
     const result = await reader.remux(streaming, { format: 'mp4', fragmented: true });
     expect(result.packets).toBeGreaterThan(0);
@@ -4479,13 +4653,19 @@ describe('remux', () => {
       return origClose();
     };
     await expect(
-      reader.remux(sink, { format: 'matroska', signal: controller.signal, onProgress: () => controller.abort() }),
+      reader.remux(sink, {
+        format: 'matroska',
+        signal: controller.signal,
+        onProgress: () => controller.abort(),
+      }),
     ).rejects.toMatchObject({ code: 'ABORTED' });
     expect(closed).toBe(true);
 
     const pre = new AbortController();
     pre.abort();
-    await expect(reader.remux(new MemorySink(), { format: 'matroska', signal: pre.signal })).rejects.toMatchObject({ code: 'ABORTED' });
+    await expect(
+      reader.remux(new MemorySink(), { format: 'matroska', signal: pre.signal }),
+    ).rejects.toMatchObject({ code: 'ABORTED' });
     await reader.close();
   });
 
@@ -4493,7 +4673,10 @@ describe('remux', () => {
     const reader = await MediaReader.open(new FileSource(fixture('h264-aac.mp4')));
     const a = new MemorySink();
     const b = new MemorySink();
-    const [ra, rb] = await Promise.all([reader.remux(a, { format: 'matroska' }), reader.remux(b, { format: 'matroska' })]);
+    const [ra, rb] = await Promise.all([
+      reader.remux(a, { format: 'matroska' }),
+      reader.remux(b, { format: 'matroska' }),
+    ]);
     expect(ra.packets).toBe(rb.packets);
     expect(a.bytes().length).toBe(b.bytes().length);
     await reader.close();
@@ -4507,7 +4690,9 @@ describe('remux', () => {
       opened = true;
       return origOpen();
     };
-    await expect(remux(new FileSource(fixture('h264-aac.mp4')), sink, { format: 'matroska', streams: [7] })).rejects.toMatchObject({
+    await expect(
+      remux(new FileSource(fixture('h264-aac.mp4')), sink, { format: 'matroska', streams: [7] }),
+    ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
     });
     expect(opened).toBe(false);
@@ -4527,7 +4712,9 @@ describe('remux', () => {
         closed = true;
       },
     };
-    await expect(remux(new FileSource(fixture('h264-aac.mp4')), sink, { format: 'matroska' })).rejects.toMatchObject({
+    await expect(
+      remux(new FileSource(fixture('h264-aac.mp4')), sink, { format: 'matroska' }),
+    ).rejects.toMatchObject({
       code: 'IO_FAILED',
       message: 'quota exceeded',
     });
@@ -4537,7 +4724,10 @@ describe('remux', () => {
   it('adversarial source (short reads, delays) produces identical output', async () => {
     const reference = new MemorySink();
     await remux(new FileSource(fixture('h264-aac.mp4')), reference, { format: 'matroska' });
-    const adversarial = new AdversarialSource(fixture('h264-aac.mp4'), { maxChunk: 777, maxDelayMs: 2 });
+    const adversarial = new AdversarialSource(fixture('h264-aac.mp4'), {
+      maxChunk: 777,
+      maxDelayMs: 2,
+    });
     const sink = new MemorySink();
     await remux(adversarial, sink, { format: 'matroska' });
     expect(adversarial.reads).toBeGreaterThan(10);
@@ -4548,20 +4738,27 @@ describe('remux', () => {
     const reference = new MemorySink();
     await remux(new FileSource(fixture('h264-aac.mp4')), reference, { format: 'matroska' });
     const sink = new MemorySink();
-    await remux(new AdversarialSource(fixture('h264-aac.mp4'), { overshoot: 100 }), sink, { format: 'matroska' });
+    await remux(new AdversarialSource(fixture('h264-aac.mp4'), { overshoot: 100 }), sink, {
+      format: 'matroska',
+    });
     expect(Buffer.from(sink.bytes()).equals(Buffer.from(reference.bytes()))).toBe(true);
   });
 
   it('wraps unknown formats as INVALID_ARGUMENT and rejects after close with NOT_OPEN', async () => {
     const reader = await MediaReader.open(new FileSource(fixture('h264-aac.mp4')));
-    await expect(reader.remux(new MemorySink(), { format: 'avi' })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(reader.remux(new MemorySink(), { format: 'avi' })).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
     await reader.close();
-    await expect(reader.remux(new MemorySink(), { format: 'matroska' })).rejects.toBeInstanceOf(AviotrixError);
+    await expect(reader.remux(new MemorySink(), { format: 'matroska' })).rejects.toBeInstanceOf(
+      AviotrixError,
+    );
   });
 });
 ```
 
 `packages/node/tests/io.test.ts`:
+
 ```ts
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -4633,21 +4830,25 @@ Expected: FAIL, `../src/index.js` has no exports.
 - [ ] **Step 4: Write the wrapper**
 
 `packages/node/src/errors.ts`:
+
 ```ts
 import { AviotrixError, isNativeFailure } from '@aviotrix/types';
 
-export function wrapNativeError(e: object | string | number | boolean | null | undefined): AviotrixError {
+export function wrapNativeError(
+  e: object | string | number | boolean | null | undefined,
+): AviotrixError {
   if (e instanceof AviotrixError) return e;
-  if (e !== null && typeof e === 'object' && isNativeFailure(e)) return new AviotrixError(e.code, e.message);
+  if (e !== null && typeof e === 'object' && isNativeFailure(e))
+    return new AviotrixError(e.code, e.message);
   if (e instanceof Error) return new AviotrixError('UNKNOWN', e.message);
   return new AviotrixError('UNKNOWN', String(e));
 }
-
 ```
 
 `catch (e)` binds `e` implicitly without the keyword appearing in source, so the `unknown` grep stays clean; callers pass it as `wrapNativeError(e as object)`.
 
 `packages/node/src/queue.ts`:
+
 ```ts
 /** Runs async operations strictly one after another, in call order. */
 export class OperationQueue {
@@ -4665,11 +4866,22 @@ export class OperationQueue {
 ```
 
 `packages/node/src/host.ts`:
+
 ```ts
 import type { IoSink, IoSource, LogFn, LogLevel, RemuxProgress } from '@aviotrix/types';
 import type { NativeHost } from './native.js';
 
-const logLevels: ReadonlySet<string> = new Set(['quiet', 'panic', 'fatal', 'error', 'warning', 'info', 'verbose', 'debug', 'trace']);
+const logLevels: ReadonlySet<string> = new Set([
+  'quiet',
+  'panic',
+  'fatal',
+  'error',
+  'warning',
+  'info',
+  'verbose',
+  'debug',
+  'trace',
+]);
 
 /** Routes the native binding's host callbacks to the current IoSource, IoSink, and listeners. */
 export class Host implements NativeHost {
@@ -4716,6 +4928,7 @@ export class Host implements NativeHost {
 ```
 
 `packages/node/src/media_reader.ts`:
+
 ```ts
 import {
   AviotrixError,
@@ -4813,7 +5026,11 @@ export async function readMetadata(source: IoSource, options?: OpenOptions): Pro
   }
 }
 
-export async function remux(source: IoSource, sink: IoSink, options: RemuxOptions): Promise<RemuxResult> {
+export async function remux(
+  source: IoSource,
+  sink: IoSink,
+  options: RemuxOptions,
+): Promise<RemuxResult> {
   const reader = await MediaReader.open(source);
   try {
     return await reader.remux(sink, options);
@@ -4824,6 +5041,7 @@ export async function remux(source: IoSource, sink: IoSink, options: RemuxOption
 ```
 
 `packages/node/src/io/file_source.ts`:
+
 ```ts
 import { open, type FileHandle } from 'node:fs/promises';
 import type { IoSource } from '@aviotrix/types';
@@ -4854,6 +5072,7 @@ export class FileSource implements IoSource {
 ```
 
 `packages/node/src/io/file_sink.ts`:
+
 ```ts
 import { open, type FileHandle } from 'node:fs/promises';
 import type { IoSink } from '@aviotrix/types';
@@ -4872,7 +5091,12 @@ export class FileSink implements IoSink {
     if (!this.handle) throw new Error('FileSink.write before open');
     let written = 0;
     while (written < data.length) {
-      const { bytesWritten } = await this.handle.write(data, written, data.length - written, offset + written);
+      const { bytesWritten } = await this.handle.write(
+        data,
+        written,
+        data.length - written,
+        offset + written,
+      );
       written += bytesWritten;
     }
   }
@@ -4886,6 +5110,7 @@ export class FileSink implements IoSink {
 ```
 
 `packages/node/src/io/memory_sink.ts`:
+
 ```ts
 import type { IoSink } from '@aviotrix/types';
 
@@ -4904,7 +5129,9 @@ export class MemorySink implements IoSink {
 
   write(offset: number, data: Uint8Array): void {
     if (!this.seekable && offset !== this.length) {
-      throw new Error(`MemorySink: streaming sink requires sequential writes (got ${offset}, expected ${this.length})`);
+      throw new Error(
+        `MemorySink: streaming sink requires sequential writes (got ${offset}, expected ${this.length})`,
+      );
     }
     const end = offset + data.length;
     if (end > this.buffer.length) {
@@ -4925,6 +5152,7 @@ export class MemorySink implements IoSink {
 ```
 
 `packages/node/src/index.ts`:
+
 ```ts
 export * from '@aviotrix/types';
 export { MediaReader, readMetadata, remux } from './media_reader.js';
@@ -4953,9 +5181,11 @@ git commit -m "Add @aviotrix/node public API: MediaReader, readMetadata, remux, 
 ### Task 10: FFmpeg WASM build target
 
 **Files:**
+
 - Modify: `scripts/build-ffmpeg.sh` (add the `wasm` case)
 
 **Interfaces:**
+
 - Consumes: Task 2 script and component list.
 - Produces: `build/ffmpeg-wasm/lib/{libavformat,libavcodec,libavutil}.a` as wasm32 static archives, no pthreads, no asm.
 
@@ -4971,6 +5201,7 @@ Expected: `emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld
 - [ ] **Step 2: Add the `wasm` case and make prefix**
 
 Replace the `wasm)` stanza and the `make` lines in `scripts/build-ffmpeg.sh` with:
+
 ```bash
 make_prefix=()
 case "$target" in
@@ -5017,10 +5248,12 @@ git commit -m "Add Emscripten wasm target to the FFmpeg build script"
 ### Task 11: WASM binding (Emscripten, JSPI) and build
 
 **Files:**
+
 - Create: `packages/wasm/package.json`, `packages/wasm/tsconfig.json`, `packages/wasm/vitest.config.ts`, `packages/wasm/CMakeLists.txt`, `packages/wasm/binding/handles.h`, `packages/wasm/binding/js_imports.h`, `packages/wasm/binding/js_imports.cc`, `packages/wasm/binding/js_io.h`, `packages/wasm/binding/js_io.cc`, `packages/wasm/binding/exports.cc`, `packages/wasm/binding/pre.js`, `packages/wasm/src/module.ts` (type declarations for the Emscripten module), `packages/wasm/src/aviotrix.d.ts`, `packages/wasm/tests/smoke.test.ts`
 - Modify: `.gitignore` (add `packages/wasm/dist/`), `README.md` (record measured size)
 
 **Interfaces:**
+
 - Consumes: core `MediaReader`, `IoSource`, `IoSink`, `toJson`, `errorCodeName`, `logLevelName`.
 - Produces: `dist/aviotrix.mjs` + `dist/aviotrix.wasm`, an ES module factory `createAviotrixModule(options?) => Promise<AviotrixModule>`, with:
   - JS-side host registry the imports read: `Module.aviotrixHosts: Map<number, WasmHost>` where
@@ -5051,6 +5284,7 @@ git commit -m "Add Emscripten wasm target to the FFmpeg build script"
 - [ ] **Step 1: Write the smoke test (browser, Chromium)**
 
 `packages/wasm/vitest.config.ts`:
+
 ```ts
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
@@ -5071,6 +5305,7 @@ export default defineConfig({
 ```
 
 `packages/wasm/src/module.ts` (hand-written declarations for the Emscripten output):
+
 ```ts
 import type { MaybePromise } from '@aviotrix/types';
 
@@ -5126,6 +5361,7 @@ export type ModuleFactory = (options?: ModuleOptions) => Promise<AviotrixModule>
 ```
 
 `packages/wasm/src/aviotrix.d.ts` (ambient declaration for the generated file):
+
 ```ts
 declare module '../dist/aviotrix.mjs' {
   import type { ModuleFactory } from './module.js';
@@ -5135,6 +5371,7 @@ declare module '../dist/aviotrix.mjs' {
 ```
 
 `packages/wasm/tests/smoke.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import createAviotrixModule from '../dist/aviotrix.mjs';
@@ -5161,6 +5398,7 @@ describe('wasm module', () => {
 - [ ] **Step 2: Write package config**
 
 `packages/wasm/package.json`:
+
 ```json
 {
   "name": "@aviotrix/wasm",
@@ -5189,10 +5427,15 @@ describe('wasm module', () => {
 ```
 
 `packages/wasm/tsconfig.json`:
+
 ```json
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist", "lib": ["es2023", "dom", "dom.iterable", "esnext.disposable"] },
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "lib": ["es2023", "dom", "dom.iterable", "esnext.disposable"]
+  },
   "include": ["src"]
 }
 ```
@@ -5210,6 +5453,7 @@ Expected: FAIL, cannot resolve `../dist/aviotrix.mjs`.
 - [ ] **Step 4: Write the binding**
 
 `packages/wasm/binding/handles.h`:
+
 ```cpp
 #pragma once
 
@@ -5238,6 +5482,7 @@ class HandleTable {
 ```
 
 `packages/wasm/binding/js_imports.h`:
+
 ```cpp
 #pragma once
 
@@ -5259,6 +5504,7 @@ int avx_js_copy_host_error(char* dest, int maxBytes);  // copies and clears Modu
 ```
 
 `packages/wasm/binding/js_imports.cc`:
+
 ```cpp
 #include "js_imports.h"
 
@@ -5335,6 +5581,7 @@ EM_JS(void, avx_js_progress, (int hostId, double bytesRead, double bytesWritten,
 ```
 
 `packages/wasm/binding/js_io.h`:
+
 ```cpp
 #pragma once
 
@@ -5374,6 +5621,7 @@ class JsIoSink final : public aviotrix::IoSink {
 ```
 
 `packages/wasm/binding/js_io.cc`:
+
 ```cpp
 #include "js_io.h"
 
@@ -5428,6 +5676,7 @@ Status JsIoSink::close() {
 ```
 
 `packages/wasm/binding/exports.cc`:
+
 ```cpp
 #include <emscripten.h>
 
@@ -5556,6 +5805,7 @@ EMSCRIPTEN_KEEPALIVE const char* avx_last_error_message(int id) {
 Note: `std::atomic<bool>` compiles to plain loads/stores without threads; keep it for API parity with the core.
 
 `packages/wasm/CMakeLists.txt`:
+
 ```cmake
 # Built with: emcmake cmake -S ../.. -B build/wasm (see package.json)
 add_executable(aviotrix_wasm
@@ -5579,6 +5829,7 @@ target_link_options(aviotrix_wasm PRIVATE
 ```
 
 `packages/wasm/binding/pre.js` (runs inside the module factory before the runtime; initializes the host registry):
+
 ```js
 Module['aviotrixHosts'] = new Map();
 Module['aviotrixLastHostError'] = '';
@@ -5607,10 +5858,12 @@ git commit -m "Add Emscripten JSPI binding for the core with host registry and C
 ### Task 12: `@aviotrix/wasm` TypeScript wrapper, reference IO, browser tests
 
 **Files:**
+
 - Create: `packages/types/src/host.ts`, `packages/types/src/queue.ts` (shared binding helpers; both bindings have identical host shapes), `packages/wasm/src/index.ts`, `packages/wasm/src/load.ts`, `packages/wasm/src/media_reader.ts`, `packages/wasm/src/memory.ts`, `packages/wasm/src/io/blob_source.ts`, `packages/wasm/src/io/fetch_range_source.ts`, `packages/wasm/src/io/memory_sink.ts`, `packages/wasm/tests/helpers/fixtures.ts`, `packages/wasm/tests/helpers/fake_range_server.ts`, `packages/wasm/tests/metadata.test.ts`, `packages/wasm/tests/remux.test.ts`, `packages/wasm/tests/io.test.ts`, `packages/wasm/tests/unsupported.test.ts`
 - Modify: `packages/types/src/index.ts` (export `BindingHost`, `OperationQueue`), `packages/node/src/native.ts` (use `BindingHost`), `packages/node/src/media_reader.ts` (import `OperationQueue`, `BindingHost` from types); Delete: `packages/node/src/host.ts`, `packages/node/src/queue.ts`
 
 **Interfaces:**
+
 - Consumes: Task 11 module and `WasmHost`; Task 7 types; Task 9 `Host`/`OperationQueue` (moved here into `@aviotrix/types`).
 - Produces (spec §5 on WASM):
   - `load(options?: { wasmUrl?: string }): Promise<void>`; rejects `AviotrixError('UNSUPPORTED_RUNTIME')` without JSPI
@@ -5634,10 +5887,13 @@ export interface BindingHostCallbacks {
   onLog(level: string, text: string): void;
   onProgress(bytesRead: number, bytesWritten: number, timestamp: number | null): void;
 }
-export class BindingHost implements BindingHostCallbacks { /* body from node/src/host.ts */ }
+export class BindingHost implements BindingHostCallbacks {
+  /* body from node/src/host.ts */
+}
 ```
 
 Add to `packages/types/src/index.ts`:
+
 ```ts
 export { BindingHost } from './host.js';
 export type { BindingHostCallbacks } from './host.js';
@@ -5651,6 +5907,7 @@ Run `npm run build -w @aviotrix/types && npm test -w @aviotrix/node` — expecte
 - [ ] **Step 2: Write the test helpers**
 
 `packages/wasm/tests/helpers/fixtures.ts`:
+
 ```ts
 export async function fixtureBytes(name: string): Promise<Uint8Array> {
   const url = new URL(`../../../../fixtures/${name}`, import.meta.url);
@@ -5665,8 +5922,12 @@ export async function fixtureBlob(name: string): Promise<Blob> {
 ```
 
 `packages/wasm/tests/helpers/fake_range_server.ts` (a `fetch` that honors `Range`, so `FetchRangeSource` is tested deterministically):
+
 ```ts
-export function fakeRangeFetch(bytes: Uint8Array, options: { ignoreRange?: boolean; noLength?: boolean } = {}): typeof fetch {
+export function fakeRangeFetch(
+  bytes: Uint8Array,
+  options: { ignoreRange?: boolean; noLength?: boolean } = {},
+): typeof fetch {
   return async (_input, init) => {
     const headers = new Headers(init?.headers);
     const range = headers.get('range');
@@ -5685,7 +5946,10 @@ export function fakeRangeFetch(bytes: Uint8Array, options: { ignoreRange?: boole
         headers: { 'content-range': `bytes ${start}-${end}/${bytes.length}` },
       });
     }
-    return new Response(bytes, { status: 200, headers: { 'content-length': String(bytes.length) } });
+    return new Response(bytes, {
+      status: 200,
+      headers: { 'content-length': String(bytes.length) },
+    });
   };
 }
 ```
@@ -5693,9 +5957,17 @@ export function fakeRangeFetch(bytes: Uint8Array, options: { ignoreRange?: boole
 - [ ] **Step 3: Write the failing tests**
 
 `packages/wasm/tests/metadata.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
-import { AviotrixError, BlobSource, FetchRangeSource, MediaReader, load, readMetadata } from '../src/index.js';
+import {
+  AviotrixError,
+  BlobSource,
+  FetchRangeSource,
+  MediaReader,
+  load,
+  readMetadata,
+} from '../src/index.js';
 import { fakeRangeFetch } from './helpers/fake_range_server.js';
 import { fixtureBlob, fixtureBytes } from './helpers/fixtures.js';
 
@@ -5704,13 +5976,20 @@ describe('readMetadata (browser)', () => {
     await load();
     const m = await readMetadata(new BlobSource(await fixtureBlob('h264-aac.mp4')));
     expect(m.format).toBe('mov,mp4,m4a,3gp,3g2,mj2');
-    expect(m.streams[0]?.video).toEqual({ width: 320, height: 240, frameRate: { num: 30, den: 1 }, pixelFormat: 'yuv420p' });
+    expect(m.streams[0]?.video).toEqual({
+      width: 320,
+      height: 240,
+      frameRate: { num: 30, den: 1 },
+      pixelFormat: 'yuv420p',
+    });
     expect(m.streams[1]?.audio?.sampleRate).toBe(48000);
   });
 
   it('reads the ts fixture via FetchRangeSource with range requests', async () => {
     const bytes = await fixtureBytes('h264-ac3.ts');
-    const src = new FetchRangeSource('https://example.test/video.ts', { fetch: fakeRangeFetch(bytes) });
+    const src = new FetchRangeSource('https://example.test/video.ts', {
+      fetch: fakeRangeFetch(bytes),
+    });
     const m = await readMetadata(src);
     expect(m.format).toBe('mpegts');
     expect(m.streams.map((s) => s.codec)).toEqual(['h264', 'ac3']);
@@ -5725,19 +6004,24 @@ describe('readMetadata (browser)', () => {
       await origClose();
     };
     await expect(MediaReader.open(src)).rejects.toMatchObject({ code: 'AVERROR_INVALIDDATA' });
-    await expect(MediaReader.open(new BlobSource(new Blob([])))).rejects.toBeInstanceOf(AviotrixError);
+    await expect(MediaReader.open(new BlobSource(new Blob([])))).rejects.toBeInstanceOf(
+      AviotrixError,
+    );
     expect(closed).toBe(true);
   });
 
   it('delivers log lines', async () => {
     const lines: string[] = [];
-    await readMetadata(new BlobSource(new Blob([new Uint8Array(4096)])), { onLog: (_l, t) => lines.push(t) }).catch(() => undefined);
+    await readMetadata(new BlobSource(new Blob([new Uint8Array(4096)])), {
+      onLog: (_l, t) => lines.push(t),
+    }).catch(() => undefined);
     expect(lines.length).toBeGreaterThan(0);
   });
 });
 ```
 
 `packages/wasm/tests/remux.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import type { IoSink, IoSource } from '@aviotrix/types';
@@ -5749,7 +6033,9 @@ const reopen = (bytes: Uint8Array) => readMetadata(new BlobSource(new Blob([byte
 describe('remux (browser)', () => {
   it('mp4 -> matroska, reopenable', async () => {
     const sink = new MemorySink();
-    const result = await remux(new BlobSource(await fixtureBlob('h264-aac.mp4')), sink, { format: 'matroska' });
+    const result = await remux(new BlobSource(await fixtureBlob('h264-aac.mp4')), sink, {
+      format: 'matroska',
+    });
     expect(result.streams).toEqual([
       { input: 0, output: 0 },
       { input: 1, output: 1 },
@@ -5772,7 +6058,9 @@ describe('remux (browser)', () => {
     const reader = await MediaReader.open(new BlobSource(await fixtureBlob('h264-aac-srt.mkv')));
     const result = await reader.remux(new MemorySink(), { format: 'mp4' });
     expect(result.streams[2]).toMatchObject({ input: 2, output: null });
-    await expect(reader.remux(new MemorySink(), { format: 'mp4', onIncompatibleStream: 'fail' })).rejects.toMatchObject({
+    await expect(
+      reader.remux(new MemorySink(), { format: 'mp4', onIncompatibleStream: 'fail' }),
+    ).rejects.toMatchObject({
       code: 'INCOMPATIBLE_STREAM',
     });
     await reader.close();
@@ -5781,7 +6069,9 @@ describe('remux (browser)', () => {
   it('streaming sink needs fragmented for mp4', async () => {
     const reader = await MediaReader.open(new BlobSource(await fixtureBlob('h264-aac.mp4')));
     const streaming = new MemorySink({ seekable: false });
-    await expect(reader.remux(streaming, { format: 'mp4' })).rejects.toMatchObject({ code: 'SINK_NOT_SEEKABLE' });
+    await expect(reader.remux(streaming, { format: 'mp4' })).rejects.toMatchObject({
+      code: 'SINK_NOT_SEEKABLE',
+    });
     const result = await reader.remux(streaming, { format: 'mp4', fragmented: true });
     expect(result.packets).toBeGreaterThan(0);
     expect(new TextDecoder('latin1').decode(streaming.bytes()).includes('moof')).toBe(true);
@@ -5799,7 +6089,11 @@ describe('remux (browser)', () => {
       return origClose();
     };
     await expect(
-      reader.remux(sink, { format: 'matroska', signal: controller.signal, onProgress: () => controller.abort() }),
+      reader.remux(sink, {
+        format: 'matroska',
+        signal: controller.signal,
+        onProgress: () => controller.abort(),
+      }),
     ).rejects.toMatchObject({ code: 'ABORTED' });
     expect(closed).toBe(true);
     await reader.close();
@@ -5812,7 +6106,10 @@ describe('remux (browser)', () => {
     ]);
     const sa = new MemorySink();
     const sb = new MemorySink();
-    const [ra, rb] = await Promise.all([a.remux(sa, { format: 'matroska' }), b.remux(sb, { format: 'webm' })]);
+    const [ra, rb] = await Promise.all([
+      a.remux(sa, { format: 'matroska' }),
+      b.remux(sb, { format: 'webm' }),
+    ]);
     expect(ra.packets).toBeGreaterThan(0);
     expect(rb.packets).toBeGreaterThan(0);
     expect((await reopen(sa.bytes())).streams[0]?.codec).toBe('h264');
@@ -5828,7 +6125,12 @@ describe('remux (browser)', () => {
       opened = true;
       return origOpen();
     };
-    await expect(remux(new BlobSource(await fixtureBlob('h264-aac.mp4')), sink, { format: 'matroska', streams: [9] })).rejects.toMatchObject({
+    await expect(
+      remux(new BlobSource(await fixtureBlob('h264-aac.mp4')), sink, {
+        format: 'matroska',
+        streams: [9],
+      }),
+    ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
     });
     expect(opened).toBe(false);
@@ -5848,7 +6150,9 @@ describe('remux (browser)', () => {
         closed = true;
       },
     };
-    await expect(remux(new BlobSource(await fixtureBlob('h264-aac.mp4')), sink, { format: 'matroska' })).rejects.toMatchObject({
+    await expect(
+      remux(new BlobSource(await fixtureBlob('h264-aac.mp4')), sink, { format: 'matroska' }),
+    ).rejects.toMatchObject({
       code: 'IO_FAILED',
       message: 'quota exceeded',
     });
@@ -5876,6 +6180,7 @@ describe('remux (browser)', () => {
 ```
 
 `packages/wasm/tests/io.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import { BlobSource, FetchRangeSource, MemorySink } from '../src/index.js';
@@ -5900,11 +6205,15 @@ describe('FetchRangeSource', () => {
     expect([...chunk]).toEqual([...bytes.subarray(500, 510)]);
   });
   it('returns null size when the server omits content-length', async () => {
-    const src = new FetchRangeSource('https://example.test/f', { fetch: fakeRangeFetch(bytes, { noLength: true }) });
+    const src = new FetchRangeSource('https://example.test/f', {
+      fetch: fakeRangeFetch(bytes, { noLength: true }),
+    });
     expect(await src.open()).toBeNull();
   });
   it('throws when the server ignores Range', async () => {
-    const src = new FetchRangeSource('https://example.test/f', { fetch: fakeRangeFetch(bytes, { ignoreRange: true }) });
+    const src = new FetchRangeSource('https://example.test/f', {
+      fetch: fakeRangeFetch(bytes, { ignoreRange: true }),
+    });
     await src.open();
     await expect(src.read(10, 5)).rejects.toThrow(/Range/);
   });
@@ -5930,6 +6239,7 @@ describe('MemorySink', () => {
 ```
 
 `packages/wasm/tests/unsupported.test.ts`:
+
 ```ts
 import { afterEach, describe, expect, it } from 'vitest';
 import { _resetForTests, load } from '../src/index.js';
@@ -5940,13 +6250,21 @@ describe('load without JSPI', () => {
   const ns = WebAssembly as WasmNamespace;
   const saved = ns.Suspending;
   afterEach(() => {
-    Object.defineProperty(WebAssembly, 'Suspending', { value: saved, configurable: true, writable: true });
+    Object.defineProperty(WebAssembly, 'Suspending', {
+      value: saved,
+      configurable: true,
+      writable: true,
+    });
     _resetForTests();
   });
 
   it('rejects with UNSUPPORTED_RUNTIME', async () => {
     _resetForTests();
-    Object.defineProperty(WebAssembly, 'Suspending', { value: undefined, configurable: true, writable: true });
+    Object.defineProperty(WebAssembly, 'Suspending', {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
     await expect(load()).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
   });
 });
@@ -5963,6 +6281,7 @@ Expected: FAIL resolving `../src/index.js` exports (the smoke test from Task 11 
 - [ ] **Step 5: Write the wrapper**
 
 `packages/wasm/src/load.ts`:
+
 ```ts
 import { AviotrixError } from '@aviotrix/types';
 import type { AviotrixModule } from './module.js';
@@ -5989,11 +6308,16 @@ export function loadModule(options: LoadOptions = {}): Promise<AviotrixModule> {
         );
       }
       const { default: createAviotrixModule } = await import('../dist/aviotrix.mjs');
-      const moduleOptions = options.wasmUrl ? { locateFile: (path: string) => (path.endsWith('.wasm') ? options.wasmUrl ?? path : path) } : {};
+      const moduleOptions = options.wasmUrl
+        ? {
+            locateFile: (path: string) =>
+              path.endsWith('.wasm') ? (options.wasmUrl ?? path) : path,
+          }
+        : {};
       return createAviotrixModule(moduleOptions);
     })();
     modulePromise.catch(() => {
-      modulePromise = null;  // allow a retry after a failed load
+      modulePromise = null; // allow a retry after a failed load
     });
   }
   return modulePromise;
@@ -6011,10 +6335,15 @@ export function _resetForTests(): void {
 ```
 
 `packages/wasm/src/memory.ts` (helpers for passing strings and arrays into the heap):
+
 ```ts
 import type { AviotrixModule, Pointer } from './module.js';
 
-export async function withCStringAsync<T>(mod: AviotrixModule, text: string, fn: (ptr: Pointer) => Promise<T>): Promise<T> {
+export async function withCStringAsync<T>(
+  mod: AviotrixModule,
+  text: string,
+  fn: (ptr: Pointer) => Promise<T>,
+): Promise<T> {
   const size = mod.lengthBytesUTF8(text) + 1;
   const ptr = mod._malloc(size);
   try {
@@ -6042,6 +6371,7 @@ export async function withInt32ArrayAsync<T>(
 ```
 
 `packages/wasm/src/media_reader.ts`:
+
 ```ts
 import {
   AviotrixError,
@@ -6128,7 +6458,9 @@ export class MediaReader {
           ),
         );
         if (rc !== 0) throw lastError(this.mod, this.readerId);
-        return parseRemuxResultJson(this.mod.UTF8ToString(this.mod._avx_reader_result(this.readerId)));
+        return parseRemuxResultJson(
+          this.mod.UTF8ToString(this.mod._avx_reader_result(this.readerId)),
+        );
       } finally {
         options.signal?.removeEventListener('abort', onAbort);
         this.host.sink = null;
@@ -6163,7 +6495,11 @@ export async function readMetadata(source: IoSource, options?: OpenOptions): Pro
   }
 }
 
-export async function remux(source: IoSource, sink: IoSink, options: RemuxOptions): Promise<RemuxResult> {
+export async function remux(
+  source: IoSource,
+  sink: IoSink,
+  options: RemuxOptions,
+): Promise<RemuxResult> {
   const reader = await MediaReader.open(source);
   try {
     return await reader.remux(sink, options);
@@ -6174,6 +6510,7 @@ export async function remux(source: IoSource, sink: IoSink, options: RemuxOption
 ```
 
 `packages/wasm/src/io/blob_source.ts`:
+
 ```ts
 import type { IoSource } from '@aviotrix/types';
 
@@ -6184,13 +6521,16 @@ export class BlobSource implements IoSource {
   }
   async read(offset: number, length: number): Promise<Uint8Array> {
     if (offset >= this.blob.size) return new Uint8Array(0);
-    return new Uint8Array(await this.blob.slice(offset, Math.min(this.blob.size, offset + length)).arrayBuffer());
+    return new Uint8Array(
+      await this.blob.slice(offset, Math.min(this.blob.size, offset + length)).arrayBuffer(),
+    );
   }
   close(): void {}
 }
 ```
 
 `packages/wasm/src/io/fetch_range_source.ts`:
+
 ```ts
 import type { IoSource } from '@aviotrix/types';
 
@@ -6222,7 +6562,8 @@ export class FetchRangeSource implements IoSource {
     headers.set('Range', `bytes=${offset}-${offset + length - 1}`);
     const res = await this.fetchImpl(this.url, { headers });
     if (res.status === 416) return new Uint8Array(0);
-    if (res.status !== 206) throw new Error(`FetchRangeSource: server ignored Range (HTTP ${res.status})`);
+    if (res.status !== 206)
+      throw new Error(`FetchRangeSource: server ignored Range (HTTP ${res.status})`);
     return new Uint8Array(await res.arrayBuffer());
   }
 
@@ -6231,6 +6572,7 @@ export class FetchRangeSource implements IoSource {
 ```
 
 `packages/wasm/src/io/memory_sink.ts`: same as `packages/node/src/io/memory_sink.ts` from Task 9 plus:
+
 ```ts
   toBlob(type = 'application/octet-stream'): Blob {
     return new Blob([this.bytes()], { type });
@@ -6238,6 +6580,7 @@ export class FetchRangeSource implements IoSource {
 ```
 
 `packages/wasm/src/index.ts`:
+
 ```ts
 export * from '@aviotrix/types';
 export { load, _resetForTests } from './load.js';
@@ -6269,10 +6612,12 @@ git commit -m "Add @aviotrix/wasm public API with Blob and HTTP range sources; s
 ### Task 13: Packaging, prebuilt binaries, and CI
 
 **Files:**
+
 - Create: `packages/node/scripts/install-native.mjs`, `packages/node/scripts/prepack.mjs`, `.github/workflows/ci.yml`, `.github/workflows/prebuild.yml`
 - Modify: `packages/node/package.json` (install/prepack scripts, `repository`, `files`, move `cmake-js` + add `prebuild-install` to `dependencies`), `.gitignore` (`packages/node/native-src/`), `README.md` (install and build docs)
 
 **Interfaces:**
+
 - Consumes: everything built so far.
 - Produces: `npm install @aviotrix/node` works via (1) a matching prebuilt from GitHub Releases, else (2) a source build from `native-src/` shipped in the tarball plus a shallow clone of FFmpeg `n8.1.3`. CI runs lint, typecheck, core tests, Node tests on three platforms, WASM build and browser tests. Tags `v*` publish prebuilt binaries named `node-v<version>-napi-v8-<platform>-<arch>.tar.gz` (prebuild strips the npm scope).
 
@@ -6289,6 +6634,7 @@ Expected: builds and tests pass exactly as with the default.
 - [ ] **Step 2: Write the install and prepack scripts**
 
 `packages/node/scripts/install-native.mjs`:
+
 ```js
 #!/usr/bin/env node
 // Runs on `npm install`. Order: skip in the monorepo -> prebuilt download -> source build.
@@ -6301,7 +6647,12 @@ const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FFMPEG_TAG = 'n8.1.3';
 
 function run(cmd, args, opts = {}) {
-  const r = spawnSync(cmd, args, { stdio: 'inherit', cwd: pkgDir, shell: process.platform === 'win32', ...opts });
+  const r = spawnSync(cmd, args, {
+    stdio: 'inherit',
+    cwd: pkgDir,
+    shell: process.platform === 'win32',
+    ...opts,
+  });
   return r.status === 0;
 }
 
@@ -6310,13 +6661,17 @@ if (existsSync(path.join(pkgDir, 'build/Release/aviotrix_node.node'))) process.e
 
 const inMonorepo = existsSync(path.join(pkgDir, '../../core/CMakeLists.txt'));
 if (inMonorepo) {
-  console.log('@aviotrix/node: monorepo checkout detected; run `npm run build:native -w @aviotrix/node` to build the addon.');
+  console.log(
+    '@aviotrix/node: monorepo checkout detected; run `npm run build:native -w @aviotrix/node` to build the addon.',
+  );
   process.exit(0);
 }
 
 if (run('npx', ['--no-install', 'prebuild-install', '-r', 'napi'])) process.exit(0);
 
-console.warn('@aviotrix/node: no prebuilt binary for this platform; building from source. This needs cmake, make, nasm and a C++20 compiler and takes several minutes.');
+console.warn(
+  '@aviotrix/node: no prebuilt binary for this platform; building from source. This needs cmake, make, nasm and a C++20 compiler and takes several minutes.',
+);
 for (const tool of ['cmake', 'make', 'nasm']) {
   if (!run(tool, ['--version'], { stdio: 'ignore' }) && !run(tool, ['-v'], { stdio: 'ignore' })) {
     console.error(`@aviotrix/node: required tool not found: ${tool}`);
@@ -6326,7 +6681,17 @@ for (const tool of ['cmake', 'make', 'nasm']) {
 const nativeSrc = path.join(pkgDir, 'native-src');
 const ffmpegDir = path.join(nativeSrc, 'third_party/ffmpeg');
 if (!existsSync(path.join(ffmpegDir, 'configure'))) {
-  if (!run('git', ['clone', '--depth', '1', '--branch', FFMPEG_TAG, 'https://github.com/FFmpeg/FFmpeg.git', ffmpegDir])) {
+  if (
+    !run('git', [
+      'clone',
+      '--depth',
+      '1',
+      '--branch',
+      FFMPEG_TAG,
+      'https://github.com/FFmpeg/FFmpeg.git',
+      ffmpegDir,
+    ])
+  ) {
     console.error('@aviotrix/node: could not clone FFmpeg');
     process.exit(1);
   }
@@ -6338,6 +6703,7 @@ if (!run('npx', ['--no-install', 'cmake-js', 'compile', `--CDAVIOTRIX_ROOT=${nat
 ```
 
 `packages/node/scripts/prepack.mjs` (copies the build inputs into the tarball):
+
 ```js
 #!/usr/bin/env node
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
@@ -6349,14 +6715,21 @@ const root = path.resolve(pkgDir, '../..');
 const out = path.join(pkgDir, 'native-src');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(path.join(out, 'scripts'), { recursive: true });
-cpSync(path.join(root, 'core'), path.join(out, 'core'), { recursive: true, filter: (p) => !p.includes('/tests') });
+cpSync(path.join(root, 'core'), path.join(out, 'core'), {
+  recursive: true,
+  filter: (p) => !p.includes('/tests'),
+});
 cpSync(path.join(root, 'CMakeLists.txt'), path.join(out, 'CMakeLists.txt'));
 cpSync(path.join(root, 'scripts/build-ffmpeg.sh'), path.join(out, 'scripts/build-ffmpeg.sh'));
-cpSync(path.join(root, 'scripts/ffmpeg-components.sh'), path.join(out, 'scripts/ffmpeg-components.sh'));
+cpSync(
+  path.join(root, 'scripts/ffmpeg-components.sh'),
+  path.join(out, 'scripts/ffmpeg-components.sh'),
+);
 console.log(`prepack: wrote ${out}`);
 ```
 
 Update `packages/node/package.json`:
+
 ```json
   "repository": { "type": "git", "url": "git+https://github.com/aviotrix/aviotrix.git", "directory": "packages/node" },
   "files": ["dist", "binding", "CMakeLists.txt", "scripts/install-native.mjs", "native-src"],
@@ -6395,6 +6768,7 @@ Expected: the four paths listed; `npm install` printed the monorepo notice and d
 - [ ] **Step 3: Write the CI workflow**
 
 `.github/workflows/ci.yml`:
+
 ```yaml
 name: CI
 on:
@@ -6476,6 +6850,7 @@ Pin `setup-emsdk` to the newest Emscripten the action offers that is ≥ 4.0 (JS
 - [ ] **Step 4: Write the prebuild workflow**
 
 `.github/workflows/prebuild.yml`:
+
 ```yaml
 name: Prebuild native binaries
 on:
@@ -6515,6 +6890,7 @@ If GitHub no longer offers a `macos-15-intel` runner label, drop that row and no
 - [ ] **Step 5: Document in README.md**
 
 Replace the README's "Build prerequisites" section with:
+
 ```markdown
 ## Install
 
@@ -6545,6 +6921,7 @@ git commit -m "Add install-from-prebuilt-or-source for @aviotrix/node, tarball p
 ### Task 14: Milestone acceptance
 
 **Files:**
+
 - Modify: `README.md` (status line), this plan (check boxes)
 
 **Interfaces:** none new.
@@ -6565,15 +6942,15 @@ Expected: every command exits 0.
 
 - [ ] **Step 2: Walk the spec §10 acceptance criteria and tick each against a passing test**
 
-| Criterion | Evidence |
-|---|---|
+| Criterion                                                                               | Evidence                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. mp4→Matroska and ts→mp4 on Node and Chromium through user-supplied async source/sink | `packages/node/tests/remux.test.ts` ("mp4 -> matroska", "ts -> mp4", "adversarial source"), `packages/wasm/tests/remux.test.ts` ("mp4 -> matroska", "ts -> mp4", "short and over-long reads") |
-| 2. Reopened outputs match stream count, codecs, duration | `core/tests/test_remux.cc` ("remux mp4 to matroska and reopen" asserts duration within 0.2 s), Node and WASM remux tests assert codecs and counts |
-| 3. mkv+srt→mp4 skips by default, fails with `'fail'` | core, Node, WASM "skips srt" tests |
-| 4. Non-seekable sink + mp4 rejects before IO; with `fragmented` succeeds | core "mp4 to a streaming sink", Node and WASM "streaming sink needs fragmented" |
-| 5. Abort rejects `ABORTED` and closes the sink | core "cancel flag aborts", Node/WASM "aborts via AbortSignal" |
-| 6. Measured `.wasm` size in README | README "WASM size" section (Task 11) |
-| 7. Lint, typecheck, tests, build green in CI on all platforms | CI run on the PR for this branch; link it in the PR description |
+| 2. Reopened outputs match stream count, codecs, duration                                | `core/tests/test_remux.cc` ("remux mp4 to matroska and reopen" asserts duration within 0.2 s), Node and WASM remux tests assert codecs and counts                                             |
+| 3. mkv+srt→mp4 skips by default, fails with `'fail'`                                    | core, Node, WASM "skips srt" tests                                                                                                                                                            |
+| 4. Non-seekable sink + mp4 rejects before IO; with `fragmented` succeeds                | core "mp4 to a streaming sink", Node and WASM "streaming sink needs fragmented"                                                                                                               |
+| 5. Abort rejects `ABORTED` and closes the sink                                          | core "cancel flag aborts", Node/WASM "aborts via AbortSignal"                                                                                                                                 |
+| 6. Measured `.wasm` size in README                                                      | README "WASM size" section (Task 11)                                                                                                                                                          |
+| 7. Lint, typecheck, tests, build green in CI on all platforms                           | CI run on the PR for this branch; link it in the PR description                                                                                                                               |
 
 - [ ] **Step 3: Update README status and commit**
 

@@ -151,7 +151,7 @@ Emscripten.
 export type MaybePromise<T> = T | Promise<T>;
 
 export interface IoSource {
-  open(): MaybePromise<number | null>;            // total size, or null if unknown
+  open(): MaybePromise<number | null>; // total size, or null if unknown
   read(offset: number, length: number): MaybePromise<Uint8Array>; // short read ok; empty = EOF
   close(): MaybePromise<void>;
 }
@@ -163,14 +163,18 @@ export interface IoSink {
   close(): MaybePromise<void>;
 }
 
-export type LogLevel = 'quiet' | 'panic' | 'fatal' | 'error' | 'warning' | 'info' | 'verbose' | 'debug' | 'trace';
+export type LogLevel =
+  'quiet' | 'panic' | 'fatal' | 'error' | 'warning' | 'info' | 'verbose' | 'debug' | 'trace';
 export type LogFn = (level: LogLevel, text: string) => void;
 
 export interface OpenOptions {
   onLog?: LogFn;
 }
 
-export interface Rational { num: number; den: number; }
+export interface Rational {
+  num: number;
+  den: number;
+}
 
 export interface VideoStreamInfo {
   width: number;
@@ -188,11 +192,11 @@ export interface AudioStreamInfo {
 export interface StreamInfo {
   index: number;
   type: 'video' | 'audio' | 'subtitle' | 'data' | 'attachment';
-  codec: string;              // libav codec name, e.g. "h264"
+  codec: string; // libav codec name, e.g. "h264"
   codecTag: string | null;
   timeBase: Rational;
-  startTime: number | null;   // seconds
-  duration: number | null;    // seconds
+  startTime: number | null; // seconds
+  duration: number | null; // seconds
   bitRate: number | null;
   language: string | null;
   tags: Record<string, string>;
@@ -201,7 +205,7 @@ export interface StreamInfo {
 }
 
 export interface Metadata {
-  format: string;             // libav input format name
+  format: string; // libav input format name
   formatLongName: string;
   startTime: number | null;
   duration: number | null;
@@ -213,14 +217,14 @@ export interface Metadata {
 export interface RemuxProgress {
   bytesRead: number;
   bytesWritten: number;
-  timestamp: number | null;   // latest muxed timestamp, seconds
+  timestamp: number | null; // latest muxed timestamp, seconds
 }
 
 export interface RemuxOptions {
-  format: string;                               // output container, e.g. "mp4", "matroska", "mpegts"
-  streams?: number[];                           // input stream indices; default all
-  onIncompatibleStream?: 'skip' | 'fail';       // default 'skip'
-  fragmented?: boolean;                         // MP4 frag_keyframe+empty_moov; required if !sink.seekable
+  format: string; // output container, e.g. "mp4", "matroska", "mpegts"
+  streams?: number[]; // input stream indices; default all
+  onIncompatibleStream?: 'skip' | 'fail'; // default 'skip'
+  fragmented?: boolean; // MP4 frag_keyframe+empty_moov; required if !sink.seekable
   signal?: AbortSignal;
   onProgress?: (progress: RemuxProgress) => void;
 }
@@ -239,7 +243,7 @@ export interface RemuxResult {
 }
 
 export class AviotrixError extends Error {
-  readonly code: string;      // e.g. "AVERROR_INVALIDDATA", "UNSUPPORTED_RUNTIME", "ABORTED"
+  readonly code: string; // e.g. "AVERROR_INVALIDDATA", "UNSUPPORTED_RUNTIME", "ABORTED"
 }
 ```
 
@@ -393,15 +397,15 @@ Chad's explicit approval.
 
 ## 12. Decisions log
 
-| Decision | Choice | Rejected |
-|---|---|---|
-| First milestone | Thin vertical slice: AVIO + metadata + remux, both targets | Port old native feature set first; WASM-only remux |
-| IO model | Async everywhere; core sync, bridges in bindings | Sync-only; dual sync/async paths |
-| libav source | Pinned FFmpeg submodule built for both targets | System libav for native |
-| Build system | CMake for core + both bindings | node-gyp + Makefile; Zig |
-| Packaging | Monorepo, separate scoped packages | Single package with conditional exports |
-| Name | aviotrix (`@aviotrix/*`) | avalanche (crypto collision), avanti (`@avanti` squatted) |
-| Containers | mp4/mov, matroska/webm, mpegts | Dropping TS to avoid parsers |
-| Incompatible streams | Skip with warning by default, `fail` option | Always fail; silent drop |
-| Package manager | npm workspaces | pnpm |
-| TS toolchain | TypeScript 7 + oxlint + Prettier | TypeScript 5 + typescript-eslint |
+| Decision             | Choice                                                     | Rejected                                                  |
+| -------------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
+| First milestone      | Thin vertical slice: AVIO + metadata + remux, both targets | Port old native feature set first; WASM-only remux        |
+| IO model             | Async everywhere; core sync, bridges in bindings           | Sync-only; dual sync/async paths                          |
+| libav source         | Pinned FFmpeg submodule built for both targets             | System libav for native                                   |
+| Build system         | CMake for core + both bindings                             | node-gyp + Makefile; Zig                                  |
+| Packaging            | Monorepo, separate scoped packages                         | Single package with conditional exports                   |
+| Name                 | aviotrix (`@aviotrix/*`)                                   | avalanche (crypto collision), avanti (`@avanti` squatted) |
+| Containers           | mp4/mov, matroska/webm, mpegts                             | Dropping TS to avoid parsers                              |
+| Incompatible streams | Skip with warning by default, `fail` option                | Always fail; silent drop                                  |
+| Package manager      | npm workspaces                                             | pnpm                                                      |
+| TS toolchain         | TypeScript 7 + oxlint + Prettier                           | TypeScript 5 + typescript-eslint                          |

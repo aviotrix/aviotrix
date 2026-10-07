@@ -1,0 +1,8 @@
+{
+  "ignorePatterns": ["dist", "build", "third_party", "node_modules"],
+  "categories": { "correctness": "error", "suspicious": "warn" },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "no-unused-vars": "error"
+  }
+}
