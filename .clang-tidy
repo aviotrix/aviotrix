@@ -1,0 +1,3 @@
+Checks: 'bugprone-*,performance-*,modernize-use-nullptr,modernize-use-override,readability-container-size-empty,-bugprone-easily-swappable-parameters'
+WarningsAsErrors: 'bugprone-*,performance-*'
+HeaderFilterRegex: '(core|packages/(node|wasm)/binding)/'
