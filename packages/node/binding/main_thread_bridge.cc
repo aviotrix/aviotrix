@@ -9,7 +9,7 @@ using aviotrix::ErrorCode;
 using aviotrix::Status;
 
 MainThreadBridge::MainThreadBridge(Napi::Env env, Napi::Object host, const char* resourceName)
-    : env_(env), finalized_(std::make_shared<bool>(false)) {
+    : env_(env), finalized_(std::make_shared<std::atomic<bool>>(false)) {
   context_ = new Context{Napi::Persistent(host), finalized_};
   tsfn_ = Tsfn::New(env, resourceName, 0, 1, context_, [](Napi::Env, void*, Context* ctx) {
     *ctx->finalized = true;
@@ -23,20 +23,23 @@ MainThreadBridge::~MainThreadBridge() {
 }
 
 void MainThreadBridge::release() {
-  if (released_ || *finalized_) return;
+  if (!usable()) return;
   released_ = true;
   tsfn_.Release();
 }
 
 void MainThreadBridge::keepAlive(bool on) {
-  if (released_ || *finalized_) return;
-  if (on)
+  const int before = operationsInFlight_;
+  operationsInFlight_ += on ? 1 : -1;
+  if (!usable()) return;
+  if (before == 0 && operationsInFlight_ == 1)
     tsfn_.Ref(env_);
-  else
+  else if (before == 1 && operationsInFlight_ == 0)
     tsfn_.Unref(env_);
 }
 
 Status MainThreadBridge::request(IoRequest& req) {
+  if (!usable()) return Status::Error(ErrorCode::IoFailed, "reader is shut down");
   req.done = false;
   Message* msg = new Message(&req);
   if (tsfn_.BlockingCall(msg) != napi_ok) {
@@ -49,26 +52,29 @@ Status MainThreadBridge::request(IoRequest& req) {
 }
 
 void MainThreadBridge::log(std::string level, std::string text) {
+  if (!usable()) return;
   Message* msg = new Message(LogMessage{std::move(level), std::move(text)});
   if (tsfn_.NonBlockingCall(msg) != napi_ok) delete msg;
 }
 
 void MainThreadBridge::progress(int64_t bytesRead, int64_t bytesWritten, std::optional<double> timestamp) {
+  if (!usable()) return;
   Message* msg = new Message(ProgressMessage{bytesRead, bytesWritten, timestamp});
   if (tsfn_.NonBlockingCall(msg) != napi_ok) delete msg;
 }
 
 void MainThreadBridge::complete(Completion completion) {
+  if (!usable()) return;
   Message* msg = new Message(std::move(completion));
   if (tsfn_.BlockingCall(msg) != napi_ok) delete msg;
 }
 
 void MainThreadBridge::finish(IoRequest* req, Status status) {
-  {
-    std::lock_guard<std::mutex> lock(req->mutex);
-    req->status = std::move(status);
-    req->done = true;
-  }
+  // Notify while holding the lock: `req` and its cv live on the worker's stack, and once the worker can
+  // observe `done` it may return from request() and destroy them.
+  std::lock_guard<std::mutex> lock(req->mutex);
+  req->status = std::move(status);
+  req->done = true;
   req->cv.notify_one();
 }
 
@@ -93,15 +99,22 @@ void MainThreadBridge::callJs(Napi::Env env, Napi::Function, Context* ctx, Messa
   if (auto* req = std::get_if<IoRequest*>(message)) {
     handleIo(env, ctx, *req);
   } else if (auto* log = std::get_if<LogMessage>(message)) {
-    Napi::Value fn = host.Get("onLog");
-    if (fn.IsFunction())
-      fn.As<Napi::Function>().Call(host, {Napi::String::New(env, log->level), Napi::String::New(env, log->text)});
+    // A throwing observer callback must not become an uncaught N-API callback exception.
+    try {
+      Napi::Value fn = host.Get("onLog");
+      if (fn.IsFunction())
+        fn.As<Napi::Function>().Call(host, {Napi::String::New(env, log->level), Napi::String::New(env, log->text)});
+    } catch (const Napi::Error&) {
+    }
   } else if (auto* p = std::get_if<ProgressMessage>(message)) {
-    Napi::Value fn = host.Get("onProgress");
-    if (fn.IsFunction()) {
-      Napi::Value ts = p->timestamp ? Napi::Value(Napi::Number::New(env, *p->timestamp)) : Napi::Value(env.Null());
-      fn.As<Napi::Function>().Call(host, {Napi::Number::New(env, static_cast<double>(p->bytesRead)),
-                                          Napi::Number::New(env, static_cast<double>(p->bytesWritten)), ts});
+    try {
+      Napi::Value fn = host.Get("onProgress");
+      if (fn.IsFunction()) {
+        Napi::Value ts = p->timestamp ? Napi::Value(Napi::Number::New(env, *p->timestamp)) : Napi::Value(env.Null());
+        fn.As<Napi::Function>().Call(host, {Napi::Number::New(env, static_cast<double>(p->bytesRead)),
+                                            Napi::Number::New(env, static_cast<double>(p->bytesWritten)), ts});
+      }
+    } catch (const Napi::Error&) {
     }
   } else if (auto* c = std::get_if<Completion>(message)) {
     if (c->status.ok()) {

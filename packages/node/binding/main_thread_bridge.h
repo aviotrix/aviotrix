@@ -2,6 +2,7 @@
 
 #include <napi.h>
 
+#include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
@@ -71,16 +72,22 @@ class MainThreadBridge {
   void complete(Completion completion);
 
   // Main thread only.
-  void keepAlive(bool on);  // Ref/Unref the TSFN so the event loop stays alive while an operation runs
-  void release();           // after the worker thread has been joined
+  // Counted: Ref the TSFN on the first operation in flight, Unref when the last one settles, so the
+  // event loop stays alive while any operation runs. uv_ref/uv_unref themselves do not stack.
+  void keepAlive(bool on);
+  // After the worker thread has been joined. Later request/log/progress/complete calls (e.g. the core
+  // reader's destructor closing the source) return IoFailed without touching the TSFN or the host.
+  void release();
 
  private:
   struct Context {
     Napi::ObjectReference host;
     // Set by the TSFN finalizer. At environment teardown Node finalizes the TSFN before ObjectWrap
-    // finalizers run, so release()/keepAlive() must not touch it afterwards.
-    std::shared_ptr<bool> finalized;
+    // finalizers run, so no bridge method may touch it afterwards (see usable()).
+    std::shared_ptr<std::atomic<bool>> finalized;
   };
+  // Whether the TSFN may still be called. Safe to read from any thread.
+  bool usable() const { return !released_.load() && !finalized_->load(); }
   static void callJs(Napi::Env env, Napi::Function, Context* ctx, Message* message);
   static void handleIo(Napi::Env env, Context* ctx, IoRequest* req);
   static void finish(IoRequest* req, aviotrix::Status status);
@@ -90,8 +97,9 @@ class MainThreadBridge {
   Napi::Env env_;  // main thread only: Ref/Unref need it and the TSFN does not expose one
   Context* context_;
   Tsfn tsfn_;
-  std::shared_ptr<bool> finalized_;
-  bool released_ = false;
+  std::shared_ptr<std::atomic<bool>> finalized_;
+  std::atomic<bool> released_{false};
+  int operationsInFlight_ = 0;  // main thread only
 };
 
 }  // namespace aviotrix_node
