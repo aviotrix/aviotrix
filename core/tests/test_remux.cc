@@ -319,3 +319,31 @@ TEST_CASE("remux mkv with PTS-only B-frame video to mp4 synthesizes DTS and reop
   REQUIRE(m.duration.has_value());
   REQUIRE(std::abs(*m.duration - *reader.metadata().duration) < 0.2);
 }
+
+TEST_CASE("progressIntervalPackets <= 0 is clamped instead of dividing by zero") {
+  test::FileSource src(test::fixturePath("h264-aac.mp4"));
+  MediaReader reader;
+  REQUIRE(reader.open(src).ok());
+  test::MemorySink sink(true);
+  RemuxOptions opt;
+  opt.format = "matroska";
+  opt.progressIntervalPackets = 0;
+  int progressCalls = 0;
+  opt.onProgress = [&](const aviotrix::RemuxProgress&) { progressCalls++; };
+  RemuxResult result;
+  REQUIRE(reader.remux(sink, opt, result).ok());
+  REQUIRE(progressCalls >= 1);
+}
+
+TEST_CASE("mkv with subrip remuxes to matroska keeping all 3 streams") {
+  test::FileSource src(test::fixturePath("h264-aac-srt.mkv"));
+  MediaReader reader;
+  REQUIRE(reader.open(src).ok());
+  test::MemorySink sink(true);
+  RemuxOptions opt;
+  opt.format = "matroska";
+  RemuxResult result;
+  REQUIRE(reader.remux(sink, opt, result).ok());
+  REQUIRE(result.streams.size() == 3);
+  REQUIRE(reopen(sink.bytes()).streams.size() == 3);
+}

@@ -17,7 +17,8 @@ struct MediaReader::Impl {
   Metadata metadata;
   LogHook log;
   bool open = false;
-  bool consumed = false;  // true after a remux read the input to EOF
+  bool consumed =
+      false;  // set when a remux begins reading, even if it fails or aborts: the input is no longer at the start
 
   void release() {
     if (fmt) avformat_close_input(&fmt);  // does not touch the custom pb

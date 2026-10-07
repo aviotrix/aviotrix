@@ -73,6 +73,7 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
   if (ret < 0 || !rawOc) return Status::FromAv(ret < 0 ? ret : AVERROR(ENOMEM), "avformat_alloc_output_context2");
   OutputContext oc(rawOc);
 
+  const int progressInterval = std::max(1, opt.progressIntervalPackets);
   std::vector<int> outIndex(in->nb_streams, -1);
   for (int idx : selected) {
     const AVStream* ist = in->streams[idx];
@@ -132,6 +133,7 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
   enum class DtsMode { Undecided, Passthrough, Synthesize };
   std::vector<DtsMode> dtsMode(oc->nb_streams, DtsMode::Undecided);
   std::vector<std::unique_ptr<detail::DtsSynthesizer>> synths(oc->nb_streams);
+  Status synthStatus = Status::Ok();
 
   // Writes one packet (taking ownership of its data) and reports progress.
   auto writePacket = [&](AVPacket* p) {
@@ -143,7 +145,7 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
       return wret;
     }
     result.packets++;
-    if (opt.onProgress && result.packets % opt.progressIntervalPackets == 0) {
+    if (opt.onProgress && result.packets % progressInterval == 0) {
       opt.onProgress(
           RemuxProgress{impl_->input->bytesRead() - bytesReadAtStart, output->bytesWritten(), lastTimestamp});
     }
@@ -172,7 +174,8 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
         failedCall = "av_read_frame";
         break;
       }
-      const int oi = outIndex[pkt->stream_index];
+      // Streams can appear mid-demux (AVFMTCTX_NOHEADER); those were never mapped.
+      const int oi = static_cast<size_t>(pkt->stream_index) < outIndex.size() ? outIndex[pkt->stream_index] : -1;
       if (oi < 0) {
         av_packet_unref(pkt.get());
         continue;
@@ -187,7 +190,7 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
         const bool needsDts = ost->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
                               (pkt->dts == AV_NOPTS_VALUE || (pkt->pts != AV_NOPTS_VALUE && pkt->dts > pkt->pts));
         dtsMode[oi] = needsDts ? DtsMode::Synthesize : DtsMode::Passthrough;
-        if (needsDts) synths[oi] = std::make_unique<detail::DtsSynthesizer>();
+        if (needsDts) synths[oi] = std::make_unique<detail::DtsSynthesizer>(16, ist->codecpar->video_delay);
       }
       if (dtsMode[oi] == DtsMode::Synthesize) {
         AVPacket* owned = av_packet_alloc();
@@ -198,8 +201,9 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
         }
         av_packet_move_ref(owned, pkt.get());
         std::vector<AVPacket*> ready;
-        synths[oi]->push(owned, ready);
+        synthStatus = synths[oi]->push(owned, ready);
         ret = writeAndFree(ready);
+        if (!synthStatus.ok()) ret = AVERROR_UNKNOWN;
       } else {
         ret = writePacket(pkt.get());  // takes ownership of the packet data
       }
@@ -210,8 +214,9 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
       for (auto& synth : synths) {
         if (!synth) continue;
         std::vector<AVPacket*> ready;
-        synth->flush(ready);
+        synthStatus = synth->flush(ready);
         ret = writeAndFree(ready);
+        if (!synthStatus.ok()) ret = AVERROR_UNKNOWN;
         if (ret < 0) break;
       }
     }
@@ -230,6 +235,8 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
   Status final = Status::Ok();
   if (ret == AVERROR_EXIT) {
     final = Status::Error(ErrorCode::Aborted, "remux aborted");
+  } else if (!synthStatus.ok()) {
+    final = synthStatus;
   } else if (ret < 0) {
     if (!output->lastError().ok())
       final = output->lastError();

@@ -18,10 +18,18 @@ AVPacket* makePacket(int64_t pts) {
   return p;
 }
 
+// Pushes everything and flushes; returns the first error (packets emitted so far stay in `out`).
+aviotrix::Status runInto(DtsSynthesizer& synth, const std::vector<int64_t>& ptsInOrder, std::vector<AVPacket*>& out) {
+  for (int64_t pts : ptsInOrder) {
+    aviotrix::Status st = synth.push(makePacket(pts), out);
+    if (!st.ok()) return st;
+  }
+  return synth.flush(out);
+}
+
 std::vector<AVPacket*> run(DtsSynthesizer& synth, const std::vector<int64_t>& ptsInOrder) {
   std::vector<AVPacket*> out;
-  for (int64_t pts : ptsInOrder) synth.push(makePacket(pts), out);
-  synth.flush(out);
+  REQUIRE(runInto(synth, ptsInOrder, out).ok());
   return out;
 }
 
@@ -65,9 +73,9 @@ TEST_CASE("DtsSynthesizer passes packets without PTS through in order, dts untou
   AVPacket* b = makePacket(AV_NOPTS_VALUE);
   b->dts = 8;
   b->pos = 222;
-  synth.push(a, out);
-  synth.push(b, out);
-  synth.flush(out);
+  REQUIRE(synth.push(a, out).ok());
+  REQUIRE(synth.push(b, out).ok());
+  REQUIRE(synth.flush(out).ok());
   REQUIRE(out.size() == 2);
   REQUIRE(out[0]->pos == 111);
   REQUIRE(out[0]->dts == 7);
@@ -80,8 +88,31 @@ TEST_CASE("DtsSynthesizer frees packets still queued when destroyed") {
   std::vector<AVPacket*> out;
   {
     DtsSynthesizer synth(8);
-    synth.push(makePacket(0), out);
-    synth.push(makePacket(1), out);
+    REQUIRE(synth.push(makePacket(0), out).ok());
+    REQUIRE(synth.push(makePacket(1), out).ok());
   }
   REQUIRE(out.empty());  // leak is caught by sanitizers; nothing handed out
+}
+
+TEST_CASE("DtsSynthesizer tolerates reorder depth that grows after the first window and never changes PTS") {
+  const std::vector<int64_t> pts = {0, 1, 2, 3, 4, 5, 6, 10, 8, 9, 13, 11, 12, 16, 14, 15};
+  DtsSynthesizer synth(3);
+  auto out = run(synth, pts);
+  REQUIRE(out.size() == pts.size());
+  for (size_t i = 0; i < out.size(); i++) {
+    REQUIRE(out[i]->pts == pts[i]);
+    REQUIRE(out[i]->dts <= out[i]->pts);
+    if (i > 0) REQUIRE(out[i]->dts > out[i - 1]->dts);
+  }
+  freeAll(out);
+}
+
+TEST_CASE("DtsSynthesizer reports Unsupported when reorder depth exceeds the floor, without touching PTS") {
+  const std::vector<int64_t> pts = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 20, 16, 12, 11, 13, 14, 15, 17, 18, 19};
+  DtsSynthesizer synth(8);
+  std::vector<AVPacket*> out;
+  aviotrix::Status st = runInto(synth, pts, out);
+  REQUIRE(st.code == static_cast<int>(aviotrix::ErrorCode::Unsupported));
+  for (size_t i = 0; i < out.size(); i++) REQUIRE(out[i]->pts == pts[i]);
+  freeAll(out);
 }
