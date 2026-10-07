@@ -18,9 +18,9 @@ jobs:
             platform: linux-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: true }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 24, cache: npm }
       - name: Install build tools (macOS)
         if: runner.os == 'macOS'
@@ -29,7 +29,7 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y nasm cmake build-essential
       - name: Cache FFmpeg (host)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/ffmpeg-host
           key: ffmpeg-host-${{ matrix.platform }}-${{ hashFiles('scripts/build-ffmpeg.sh', 'scripts/ffmpeg-components.sh', '.gitmodules') }}-${{ hashFiles('third_party/ffmpeg/RELEASE') }}
@@ -59,14 +59,14 @@ jobs:
   wasm:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: true }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 24, cache: npm }
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: mymindstorm/setup-emsdk@v16
         with: { version: 6.0.10 }
       - name: Cache FFmpeg (wasm)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/ffmpeg-wasm
           key: ffmpeg-wasm-${{ hashFiles('scripts/build-ffmpeg.sh', 'scripts/ffmpeg-components.sh', '.gitmodules') }}-${{ hashFiles('third_party/ffmpeg/RELEASE') }}
