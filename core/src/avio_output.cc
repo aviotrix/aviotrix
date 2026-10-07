@@ -36,7 +36,7 @@ Status AvioOutput::create(IoSink& sink, std::unique_ptr<AvioOutput>& out) {
 AvioOutput::~AvioOutput() {
   (void)closeIo();
   if (ctx_) {
-    av_freep(&ctx_->buffer);
+    av_freep(static_cast<void*>(&ctx_->buffer));
     avio_context_free(&ctx_);
   }
 }

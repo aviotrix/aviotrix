@@ -57,7 +57,7 @@ StreamType typeOf(AVMediaType t) {
 
 std::optional<double> secondsOf(int64_t ts, AVRational tb) {
   if (ts == AV_NOPTS_VALUE) return std::nullopt;
-  return ts * av_q2d(tb);
+  return static_cast<double>(ts) * av_q2d(tb);
 }
 
 std::optional<Rational> frameRateOf(const AVStream* st) {
@@ -94,7 +94,7 @@ Metadata readMetadata(const AVFormatContext* fmt) {
     info.codecTag = codecTagOf(par->codec_tag);
     info.timeBase = Rational{st->time_base.num, st->time_base.den};
     info.startTime = secondsOf(st->start_time, st->time_base);
-    if (st->duration > 0) info.duration = st->duration * av_q2d(st->time_base);
+    if (st->duration > 0) info.duration = static_cast<double>(st->duration) * av_q2d(st->time_base);
     if (par->bit_rate > 0) info.bitRate = par->bit_rate;
     info.tags = dictToMap(st->metadata);
     if (auto it = info.tags.find("language"); it != info.tags.end()) info.language = it->second;

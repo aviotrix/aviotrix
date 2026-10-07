@@ -37,7 +37,7 @@ Status AvioInput::create(IoSource& source, std::unique_ptr<AvioInput>& out) {
 AvioInput::~AvioInput() {
   (void)closeIo();
   if (ctx_) {
-    av_freep(&ctx_->buffer);
+    av_freep(static_cast<void*>(&ctx_->buffer));
     avio_context_free(&ctx_);
   }
 }
