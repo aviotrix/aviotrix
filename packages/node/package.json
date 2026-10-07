@@ -36,7 +36,7 @@
     "build:native": "cmake-js compile",
     "build:ts": "tsc -p tsconfig.json",
     "build": "npm run build:native && npm run build:ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run"
   },
   "dependencies": {

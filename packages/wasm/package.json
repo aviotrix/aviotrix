@@ -17,7 +17,7 @@
     "build:wasm": "emcmake cmake -S ../.. -B build/wasm -DAVIOTRIX_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release && cmake --build build/wasm -j && mkdir -p dist && cp build/wasm/packages/wasm/aviotrix.mjs build/wasm/packages/wasm/aviotrix.wasm dist/",
     "build:ts": "tsc -p tsconfig.json",
     "build": "npm run build:wasm && npm run build:ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "size": "ls -l dist/aviotrix.wasm | awk '{print $5\" bytes\"}' && gzip -9 -c dist/aviotrix.wasm | wc -c | awk '{print $1\" bytes gzipped\"}'"
   },
