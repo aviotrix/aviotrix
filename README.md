@@ -15,6 +15,14 @@ Milestone 1 complete: open via IoSource, read metadata, remux to IoSink, on Node
 
 Source builds need cmake, make, nasm, a C++20 compiler, and network access to clone FFmpeg n8.1.3.
 
+## Behavior
+
+Remux output starts at 0. Like the `ffmpeg` CLI default, the input's start time (for example the
+~1.46 s offset of a typical MPEG-TS capture) is subtracted from every packet, so the output has no
+leading gap or empty edit, and its duration matches the input's. Relative offsets between streams
+are kept. Streams the target muxer cannot carry are skipped with a `skippedReason` (or rejected
+with `INCOMPATIBLE_STREAM` when `onIncompatibleStream: 'fail'`).
+
 ## Develop
 
     brew install cmake nasm emscripten ffmpeg   # ffmpeg CLI only regenerates fixtures
@@ -22,6 +30,13 @@ Source builds need cmake, make, nasm, a C++20 compiler, and network access to cl
     npm run test:core                            # builds FFmpeg (host) on first run, then the core tests
     npm run build:native -w @aviotrix/node && npm test -w @aviotrix/node
     npm run build -w @aviotrix/wasm && npx playwright install chromium && npm test -w @aviotrix/wasm
+
+C++ lint tools: CI pins LLVM 18 (`clang-format-18`, `clang-tidy-18` on Ubuntu 24.04). `npm run
+lint:cpp` uses `$CLANG_FORMAT` or `clang-format` from PATH; the check gives identical results with
+clang-format 18 through 23 for this `.clang-format`. The clang-tidy build
+(`cmake -S . -B build/core-tidy -DAVIOTRIX_CLANG_TIDY=ON -DAVIOTRIX_BUILD_TESTS=OFF`) finds
+clang-tidy on PATH or Homebrew's keg-only `llvm` (`brew install llvm`); findings can differ between
+LLVM majors, so CI's version is the reference.
 
 ## WASM size
 
