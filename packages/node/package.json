@@ -1,0 +1,37 @@
+{
+  "name": "@aviotrix/node",
+  "version": "0.1.0",
+  "description": "libav (FFmpeg) remuxing and metadata for Node through a custom async AVIO layer",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "binding",
+    "CMakeLists.txt"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build:native": "cmake-js compile",
+    "build:ts": "tsc -p tsconfig.json",
+    "build": "npm run build:native && npm run build:ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aviotrix/types": "0.1.0",
+    "node-addon-api": "^8.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "cmake-js": "^8.0.0",
+    "vitest": "^5.0.3"
+  }
+}
