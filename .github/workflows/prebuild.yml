@@ -1,0 +1,31 @@
+name: Prebuild native binaries
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  prebuild:
+    permissions: { contents: write }
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, platform: darwin-arm64 }
+          - { os: macos-15-intel, platform: darwin-x64 }
+          - { os: ubuntu-24.04, platform: linux-x64 }
+          - { os: ubuntu-24.04-arm, platform: linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - if: runner.os == 'macOS'
+        run: brew install nasm cmake
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm cmake build-essential
+      - run: npm ci
+      - run: npm run build -w @aviotrix/types
+      - name: Build and upload prebuilt
+        working-directory: packages/node
+        run: npx prebuild --backend cmake-js -r napi -t 8 --strip -u ${{ secrets.GITHUB_TOKEN }}
