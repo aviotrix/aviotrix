@@ -11,7 +11,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "lint": "oxlint --deny-warnings --no-error-on-unmatched-pattern && bash scripts/check-no-unknown.sh && prettier --check .",
+    "lint": "oxlint --deny-warnings && bash scripts/check-no-unknown.sh && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
