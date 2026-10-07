@@ -1,6 +1,8 @@
 #include <algorithm>
+#include <iterator>
 #include <memory>
 #include <set>
+#include <string>
 
 #include "avio_output.h"
 #include "aviotrix/media_reader.h"
@@ -22,6 +24,49 @@ namespace {
 bool isMp4Family(const AVOutputFormat* ofmt) {
   const std::string name = ofmt->name ? ofmt->name : "";
   return name == "mp4" || name == "mov";
+}
+
+// Codecs the mpegts muxer can actually signal; avformat_query_codec cannot tell (it returns
+// AVERROR_PATCHWELCOME because mpegts has neither codec_tag tables nor a query_codec callback),
+// and anything else is written as an unrecognizable private data stream.
+constexpr AVCodecID kMpegtsCodecs[] = {
+    AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_MPEG2VIDEO,   AV_CODEC_ID_MPEG1VIDEO,
+    AV_CODEC_ID_AAC,  AV_CODEC_ID_AC3,  AV_CODEC_ID_EAC3,         AV_CODEC_ID_MP3,
+    AV_CODEC_ID_MP2,  AV_CODEC_ID_OPUS, AV_CODEC_ID_DVB_SUBTITLE, AV_CODEC_ID_DVB_TELETEXT,
+};
+
+// Reason `ofmt` cannot carry `par` by stream copy; empty when it can.
+std::string unsupportedReason(const AVOutputFormat* ofmt, const AVCodecParameters* par) {
+  const std::string muxer = ofmt->name ? ofmt->name : "";
+  const std::string codec = avcodec_get_name(par->codec_id);
+  std::string notSupported = "codec " + codec + " is not supported by muxer " + muxer;
+  const int q = avformat_query_codec(ofmt, par->codec_id, FF_COMPLIANCE_NORMAL);
+  if (q == 0) return notSupported;
+  if (q < 0) {
+    // Unknown: fall back to an explicit allowlist; muxers without one are treated as unsupported.
+    if (muxer != "mpegts") return notSupported;
+    if (std::find(std::begin(kMpegtsCodecs), std::end(kMpegtsCodecs), par->codec_id) == std::end(kMpegtsCodecs))
+      return notSupported;
+  }
+  // movenc rejects these at write_header even though its tag tables list them (query_codec says yes).
+  const AVCodecID id = par->codec_id;
+  if (isMp4Family(ofmt) && id == AV_CODEC_ID_VP8) return notSupported;
+  if (muxer == "mov" && (id == AV_CODEC_ID_VP9 || id == AV_CODEC_ID_AV1 || id == AV_CODEC_ID_OPUS ||
+                         id == AV_CODEC_ID_FLAC || id == AV_CODEC_ID_TRUEHD)) {
+    return "codec " + codec + " is not supported by muxer mov (mp4 only)";
+  }
+  // The vpcC/av1C boxes need the pixel format and profile, which a decoder-less build cannot recover.
+  if (isMp4Family(ofmt) && (id == AV_CODEC_ID_VP9 || id == AV_CODEC_ID_AV1) &&
+      (par->format < 0 || par->profile == AV_PROFILE_UNKNOWN)) {
+    return "codec " + codec + " lacks pixel format/profile needed by muxer " + muxer;
+  }
+  return "";
+}
+
+// True when `ofmt` can carry `par` by stream copy; otherwise `reason` says why not.
+bool isCodecSupportedByMuxer(const AVOutputFormat* ofmt, const AVCodecParameters* par, std::string& reason) {
+  reason = unsupportedReason(ofmt, par);
+  return reason.empty();
 }
 
 struct OutputContextDeleter {
@@ -78,10 +123,8 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
   for (int idx : selected) {
     const AVStream* ist = in->streams[idx];
     const AVCodecParameters* par = ist->codecpar;
-    const int q = avformat_query_codec(ofmt, par->codec_id, FF_COMPLIANCE_NORMAL);
-    if (q == 0) {
-      std::string reason =
-          std::string("codec ") + avcodec_get_name(par->codec_id) + " is not supported by muxer " + ofmt->name;
+    std::string reason;
+    if (!isCodecSupportedByMuxer(ofmt, par, reason)) {
       if (opt.failOnIncompatible) return Status::Error(ErrorCode::IncompatibleStream, reason);
       av_log(oc.get(), AV_LOG_WARNING, "aviotrix: skipping stream %d: %s\n", idx, reason.c_str());
       result.streams.push_back({idx, std::nullopt, reason});
@@ -121,7 +164,7 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
 
   AVDictionary* muxOpts = nullptr;
   if (opt.fragmented && isMp4Family(ofmt))
-    av_dict_set(&muxOpts, "movflags", "frag_keyframe+empty_moov+default_base_moof", 0);
+    av_dict_set(&muxOpts, "movflags", "frag_keyframe+empty_moov+default_base_moof+delay_moov", 0);
   ret = avformat_write_header(oc.get(), &muxOpts);
   av_dict_free(&muxOpts);
   const char* failedCall = "avformat_write_header";
@@ -138,7 +181,7 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
   // Writes one packet (taking ownership of its data) and reports progress.
   auto writePacket = [&](AVPacket* p) {
     const AVStream* ost = oc->streams[p->stream_index];
-    if (p->pts != AV_NOPTS_VALUE) lastTimestamp = p->pts * av_q2d(ost->time_base);
+    if (p->pts != AV_NOPTS_VALUE) lastTimestamp = static_cast<double>(p->pts) * av_q2d(ost->time_base);
     const int wret = av_interleaved_write_frame(oc.get(), p);
     if (wret < 0) {
       failedCall = "av_interleaved_write_frame";
@@ -182,6 +225,12 @@ Status MediaReader::remux(IoSink& sink, const RemuxOptions& opt, RemuxResult& re
       }
       const AVStream* ist = in->streams[pkt->stream_index];
       const AVStream* ost = oc->streams[oi];
+      // Output starts at 0, like the ffmpeg CLI: drop the input's start offset.
+      if (in->start_time != AV_NOPTS_VALUE) {
+        const int64_t offset = av_rescale_q(in->start_time, AV_TIME_BASE_Q, ist->time_base);
+        if (pkt->pts != AV_NOPTS_VALUE) pkt->pts -= offset;
+        if (pkt->dts != AV_NOPTS_VALUE) pkt->dts -= offset;
+      }
       av_packet_rescale_ts(pkt.get(), ist->time_base, ost->time_base);
       pkt->stream_index = oi;
       pkt->pos = -1;
