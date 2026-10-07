@@ -5,6 +5,7 @@
 #include "aviotrix/io.h"
 #include "aviotrix/log.h"
 #include "aviotrix/metadata.h"
+#include "aviotrix/remux.h"
 #include "aviotrix/status.h"
 
 namespace aviotrix {
@@ -24,6 +25,9 @@ class MediaReader {
   Status open(IoSource& source, OpenOptions options = {});
   bool isOpen() const;
   const Metadata& metadata() const;
+
+  // Stream-copies the selected streams into `sink`. See remux.h for the error contract.
+  Status remux(IoSink& sink, const RemuxOptions& options, RemuxResult& result);
   Status close();
 
  private:

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "aviotrix/metadata.h"
+#include "aviotrix/remux.h"
 
 namespace aviotrix {
 
@@ -35,5 +36,6 @@ class JsonWriter {
 };
 
 std::string toJson(const Metadata& metadata);
+std::string toJson(const RemuxResult& result);
 
 }  // namespace aviotrix
