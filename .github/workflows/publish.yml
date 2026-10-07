@@ -1,6 +1,6 @@
 name: Publish
-
-workflow_run:
+on:
+  workflow_run:
     workflows: ["Prebuild native binaries"]
     types:
       - completed
@@ -49,7 +49,7 @@ jobs:
       - run: npm test -w @aviotrix/types
       - run: npm run build:ts -w @aviotrix/node
       - run: npm run build -w @aviotrix/wasm
-      - name: Publish (types first: node and wasm depend on it)
+      - name: Publish (types first node and wasm depend on it)
         run: |
           for pkg in types node wasm; do
             name="$(node -p "require('./packages/$pkg/package.json').name")"
