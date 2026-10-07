@@ -1,5 +1,17 @@
-import type { IoSink, IoSource, LogFn, LogLevel, RemuxProgress } from '@aviotrix/types';
-import type { NativeHost } from './native.js';
+import type { IoSink, IoSource, MaybePromise } from './io.js';
+import type { LogFn, LogLevel } from './log.js';
+import type { RemuxProgress } from './remux.js';
+
+export interface BindingHostCallbacks {
+  sourceOpen(): MaybePromise<number | null>;
+  sourceRead(offset: number, length: number): MaybePromise<Uint8Array>;
+  sourceClose(): MaybePromise<void>;
+  sinkOpen(): MaybePromise<void>;
+  sinkWrite(offset: number, data: Uint8Array): MaybePromise<void>;
+  sinkClose(): MaybePromise<void>;
+  onLog(level: string, text: string): void;
+  onProgress(bytesRead: number, bytesWritten: number, timestamp: number | null): void;
+}
 
 const logLevels: ReadonlySet<string> = new Set([
   'quiet',
@@ -13,8 +25,8 @@ const logLevels: ReadonlySet<string> = new Set([
   'trace',
 ]);
 
-/** Routes the native binding's host callbacks to the current IoSource, IoSink, and listeners. */
-export class Host implements NativeHost {
+/** Routes a binding's host callbacks to the current IoSource, IoSink, and listeners. */
+export class BindingHost implements BindingHostCallbacks {
   sink: IoSink | null = null;
   onProgressListener: ((progress: RemuxProgress) => void) | null = null;
 
@@ -44,10 +56,18 @@ export class Host implements NativeHost {
   onLog(level: string, text: string): void {
     if (!this.onLogListener) return;
     const lvl: LogLevel = logLevels.has(level) ? (level as LogLevel) : 'info';
-    this.onLogListener(lvl, text);
+    try {
+      this.onLogListener(lvl, text);
+    } catch {
+      // A throwing user callback must never cross into native/wasm code.
+    }
   }
   onProgress(bytesRead: number, bytesWritten: number, timestamp: number | null): void {
-    this.onProgressListener?.({ bytesRead, bytesWritten, timestamp });
+    try {
+      this.onProgressListener?.({ bytesRead, bytesWritten, timestamp });
+    } catch {
+      // A throwing user callback must never cross into native/wasm code.
+    }
   }
 
   private requireSink(): IoSink {

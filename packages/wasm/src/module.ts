@@ -1,15 +1,6 @@
-import type { MaybePromise } from '@aviotrix/types';
+import type { BindingHostCallbacks as WasmHost } from '@aviotrix/types';
 
-export interface WasmHost {
-  sourceOpen(): MaybePromise<number | null>;
-  sourceRead(offset: number, length: number): MaybePromise<Uint8Array>;
-  sourceClose(): MaybePromise<void>;
-  sinkOpen(): MaybePromise<void>;
-  sinkWrite(offset: number, data: Uint8Array): MaybePromise<void>;
-  sinkClose(): MaybePromise<void>;
-  onLog(level: string, text: string): void;
-  onProgress(bytesRead: number, bytesWritten: number, timestamp: number | null): void;
-}
+export type { BindingHostCallbacks as WasmHost } from '@aviotrix/types';
 
 export type Pointer = number;
 
