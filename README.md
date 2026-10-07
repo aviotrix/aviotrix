@@ -6,7 +6,7 @@ Design: `docs/superpowers/specs/2026-10-06-aviotrix-design.md`.
 
 ## Status
 
-Milestone 1 in progress: open via `IoSource`, read metadata, remux to `IoSink`.
+Milestone 1 complete: open via IoSource, read metadata, remux to IoSink, on Node and in JSPI browsers.
 
 ## Install
 

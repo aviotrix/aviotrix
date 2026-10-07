@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "oxlint --deny-warnings && bash scripts/check-no-unknown.sh && prettier --check . && npm run lint:cpp",
     "format": "prettier --write .",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build -w @aviotrix/types && npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test:core && npm run test --workspaces --if-present",
     "test:core": "cmake -S . -B build/core-host && cmake --build build/core-host -j && ctest --test-dir build/core-host --output-on-failure",

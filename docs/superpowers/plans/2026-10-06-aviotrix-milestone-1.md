@@ -6926,7 +6926,7 @@ git commit -m "Add install-from-prebuilt-or-source for @aviotrix/node, tarball p
 
 **Interfaces:** none new.
 
-- [ ] **Step 1: Run the full verification from a clean tree**
+- [x] **Step 1: Run the full verification from a clean tree**
 
 ```bash
 git status --porcelain   # must be empty
@@ -6938,9 +6938,9 @@ npm test -w @aviotrix/types && npm test -w @aviotrix/node
 npm run build -w @aviotrix/wasm && npm test -w @aviotrix/wasm && npm run size -w @aviotrix/wasm
 ```
 
-Expected: every command exits 0.
+Expected: every command exits 0. (`npm run typecheck` builds `@aviotrix/types` first, so it works from a clean tree.)
 
-- [ ] **Step 2: Walk the spec §10 acceptance criteria and tick each against a passing test**
+- [x] **Step 2: Walk the spec §10 acceptance criteria and tick each against a passing test**
 
 | Criterion                                                                               | Evidence                                                                                                                                                                                      |
 | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -6952,7 +6952,7 @@ Expected: every command exits 0.
 | 6. Measured `.wasm` size in README                                                      | README "WASM size" section (Task 11)                                                                                                                                                          |
 | 7. Lint, typecheck, tests, build green in CI on all platforms                           | CI run on the PR for this branch; link it in the PR description                                                                                                                               |
 
-- [ ] **Step 3: Update README status and commit**
+- [x] **Step 3: Update README status and commit**
 
 Change the README "Status" line to `Milestone 1 complete: open via IoSource, read metadata, remux to IoSink, on Node and in JSPI browsers.`
 
