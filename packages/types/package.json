@@ -4,7 +4,11 @@
   "description": "Shared TypeScript contract for aviotrix: IoSource, IoSink, Metadata, remux types, AviotrixError",
   "license": "MIT",
   "type": "module",
-  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.comaviotrix/aviotrix.git",
+    "directory": "packages/types"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

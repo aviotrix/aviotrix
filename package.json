@@ -10,6 +10,10 @@
   "engines": {
     "node": ">=24"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aviotrix/aviotrix.git"
+  },
   "scripts": {
     "lint": "oxlint --deny-warnings && bash scripts/check-no-unknown.sh && prettier --check . && npm run lint:cpp",
     "format": "prettier --write .",

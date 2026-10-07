@@ -1,0 +1,64 @@
+name: Publish
+
+workflow_run:
+    workflows: ["Prebuild native binaries"]
+    types:
+      - completed
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC) and provenance
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: true }
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Use an npm that supports trusted publishing (>= 11.5.1)
+        run: npm install -g npm@latest
+      - uses: mymindstorm/setup-emsdk@v16
+        with: { version: 6.0.10 }
+      - name: Check the tag matches every package version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for pkg in types node wasm; do
+            ver="$(node -p "require('./packages/$pkg/package.json').version")"
+            if [ "$ver" != "$tag" ]; then
+              echo "::error::tag v$tag does not match packages/$pkg version $ver"
+              exit 1
+            fi
+          done
+      - name: Cache FFmpeg (wasm)
+        uses: actions/cache@v6
+        with:
+          path: build/ffmpeg-wasm
+          key: ffmpeg-wasm-${{ hashFiles('scripts/build-ffmpeg.sh', 'scripts/ffmpeg-components.sh', '.gitmodules') }}-${{ hashFiles('third_party/ffmpeg/RELEASE') }}
+      - run: npm ci
+      - run: npm run build -w @aviotrix/types
+      - run: npm run typecheck
+      - run: npm test -w @aviotrix/types
+      - run: npm run build:ts -w @aviotrix/node
+      - run: npm run build -w @aviotrix/wasm
+      - name: Publish (types first: node and wasm depend on it)
+        run: |
+          for pkg in types node wasm; do
+            name="$(node -p "require('./packages/$pkg/package.json').name")"
+            ver="$(node -p "require('./packages/$pkg/package.json').version")"
+            if npm view "$name@$ver" version >/dev/null 2>&1; then
+              echo "$name@$ver is already published; skipping"
+              continue
+            fi
+            tag_args=()
+            case "$ver" in *-*) tag_args=(--tag next) ;; esac
+            npm publish -w "$name" --access public "${tag_args[@]}"
+          done
