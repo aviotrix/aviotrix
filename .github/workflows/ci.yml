@@ -40,6 +40,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install clang-format
       - run: npm ci
+      - run: npm run build -w @aviotrix/types
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:core
@@ -59,7 +60,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm }
       - uses: mymindstorm/setup-emsdk@v14
-        with: { version: 4.0.23 }
+        with: { version: 6.0.10 }
       - name: Cache FFmpeg (wasm)
         uses: actions/cache@v4
         with:

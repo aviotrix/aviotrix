@@ -6,3 +6,4 @@ build/
 .superpowers/
 packages/wasm/dist/
 packages/node/native-src/
+prebuilds/

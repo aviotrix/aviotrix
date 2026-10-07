@@ -28,4 +28,5 @@ jobs:
       - run: npm run build -w @aviotrix/types
       - name: Build and upload prebuilt
         working-directory: packages/node
-        run: npx prebuild --backend cmake-js -r napi -t 8 --strip -u ${{ secrets.GITHUB_TOKEN }}
+        env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: npx prebuild --backend cmake-js -r napi -t 8 --strip -u "$GITHUB_TOKEN"

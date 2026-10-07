@@ -25,6 +25,11 @@
   "engines": {
     "node": ">=24"
   },
+  "binary": {
+    "napi_versions": [
+      8
+    ]
+  },
   "scripts": {
     "install": "node scripts/install-native.mjs",
     "prepack": "node scripts/prepack.mjs",
@@ -32,8 +37,7 @@
     "build:ts": "tsc -p tsconfig.json",
     "build": "npm run build:native && npm run build:ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "prebuild": "prebuild --backend cmake-js -r napi -t 8 --strip"
+    "test": "vitest run"
   },
   "dependencies": {
     "@aviotrix/types": "0.1.0",
