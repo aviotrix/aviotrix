@@ -7,6 +7,7 @@ import {
   load,
   readMetadata,
 } from '../src/index.js';
+import { loadModule } from '../src/load.js';
 import { fakeRangeFetch } from './helpers/fake_range_server.js';
 import { fixtureBlob, fixtureBytes } from './helpers/fixtures.js';
 
@@ -57,5 +58,19 @@ describe('readMetadata (browser)', () => {
       onLog: (_l, t) => lines.push(t),
     }).catch(() => undefined);
     expect(lines.length).toBeGreaterThan(0);
+  });
+});
+
+describe('host bookkeeping', () => {
+  it('leaves no host entries behind after opening and closing readers', async () => {
+    const mod = await loadModule();
+    const before = mod.aviotrixHosts.size;
+    const blob = await fixtureBlob('h264-aac.mp4');
+    for (let i = 0; i < 20; i++) {
+      const reader = await MediaReader.open(new BlobSource(blob));
+      await reader.close();
+    }
+    await MediaReader.open(new BlobSource(new Blob([]))).catch(() => undefined);
+    expect(mod.aviotrixHosts.size).toBe(before);
   });
 });

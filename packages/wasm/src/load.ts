@@ -1,5 +1,5 @@
 import { AviotrixError } from '@aviotrix/types';
-import type { AviotrixModule, ModuleFactory } from './module.js';
+import type { AviotrixModule } from './module.js';
 
 export interface LoadOptions {
   /** Override where the .wasm is fetched from. Default: next to the module script. */
@@ -22,10 +22,7 @@ export function loadModule(options: LoadOptions = {}): Promise<AviotrixModule> {
           '@aviotrix/wasm needs WebAssembly JavaScript Promise Integration (WebAssembly.Suspending). Chrome 137+, Safari 27+, Firefox 153+.',
         );
       }
-      // Emscripten-generated glue without a declaration file.
-      // @ts-expect-error TS7016: no types for generated module
-      const glue: { default: ModuleFactory } = await import('../dist/aviotrix.mjs');
-      const createAviotrixModule = glue.default;
+      const { default: createAviotrixModule } = await import('../dist/aviotrix.mjs');
       const moduleOptions = options.wasmUrl
         ? {
             locateFile: (path: string) =>

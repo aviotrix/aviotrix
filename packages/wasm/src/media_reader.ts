@@ -46,15 +46,22 @@ export class MediaReader {
       const hostId = nextHostId++;
       const host = new BindingHost(source, options.onLog);
       mod.aviotrixHosts.set(hostId, host);
-      const readerId = mod._avx_reader_new(hostId);
+      let readerId = 0;
+      let opened = false;
       try {
+        readerId = mod._avx_reader_new(hostId);
         const rc = await mod._avx_reader_open(readerId);
         if (rc !== 0) throw lastError(mod, readerId);
+        opened = true;
         const metadata = parseMetadataJson(mod.UTF8ToString(mod._avx_reader_metadata(readerId)));
         return new MediaReader(mod, readerId, hostId, host, metadata);
       } catch (e) {
-        // A failed open leaves the reader not-open, so free alone is safe (no suspending import).
-        mod._avx_reader_free(readerId);
+        if (readerId !== 0) {
+          // Never free an open reader: its destructor would call the suspending sourceClose import
+          // from a non-promising stack. A reader whose open failed is not open, so free is safe.
+          if (opened) await mod._avx_reader_close(readerId).catch(() => undefined);
+          mod._avx_reader_free(readerId);
+        }
         mod.aviotrixHosts.delete(hostId);
         throw e;
       }
