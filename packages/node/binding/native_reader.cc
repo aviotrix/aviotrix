@@ -122,6 +122,9 @@ Napi::Value NativeReader::Remux(const Napi::CallbackInfo& info) {
     for (uint32_t i = 0; i < arr.Length(); i++) idx.push_back(arr.Get(i).ToNumber().Int32Value());
     opt.streams = std::move(idx);
   }
+  // Reset here on the main thread, not on the worker: a cancel() issued right after this call must
+  // not be wiped out. (The TS wrapper checks signal.aborted before calling, so no cancel is lost.)
+  cancel_.store(false);
   opt.cancel = &cancel_;
   opt.onProgress = [this](const aviotrix::RemuxProgress& p) {
     bridge_->progress(p.bytesRead, p.bytesWritten, p.timestamp);
@@ -131,7 +134,6 @@ Napi::Value NativeReader::Remux(const Napi::CallbackInfo& info) {
     JsIoSink sink(*bridge_, sinkSeekable);
     aviotrix::RemuxResult result;
     Status st = reader_.remux(sink, opt, result);
-    cancel_.store(false);
     if (!st.ok()) return {st, ""};
     return {st, aviotrix::toJson(result)};
   });

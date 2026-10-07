@@ -16,7 +16,7 @@ EM_ASYNC_JS(double, avx_js_source_open, (int hostId), {
   try {
     const size = await host.sourceOpen();
     return size === null || size === undefined ? -1 : Number(size);
-  } catch (e) { Module.aviotrixLastHostError = String(e && e.message ? e.message : e); return -2; }
+  } catch (e) { Module.aviotrixLastHostError = Module.aviotrixDescribeError(e); return -2; }
 });
 
 EM_ASYNC_JS(int, avx_js_source_read, (int hostId, double offset, int length, uint8_t* dest), {
@@ -27,21 +27,21 @@ EM_ASYNC_JS(int, avx_js_source_read, (int hostId, double offset, int length, uin
     const n = Math.min(bytes.byteLength, length);  // over-long reads are truncated
     HEAPU8.set(bytes.subarray(0, n), dest);
     return n;
-  } catch (e) { Module.aviotrixLastHostError = String(e && e.message ? e.message : e); return -1; }
+  } catch (e) { Module.aviotrixLastHostError = Module.aviotrixDescribeError(e); return -1; }
 });
 
 EM_ASYNC_JS(int, avx_js_source_close, (int hostId), {
   const host = Module.aviotrixHosts.get(hostId);
   if (!host) return 0;
   try { await host.sourceClose(); return 0; }
-  catch (e) { Module.aviotrixLastHostError = String(e && e.message ? e.message : e); return -1; }
+  catch (e) { Module.aviotrixLastHostError = Module.aviotrixDescribeError(e); return -1; }
 });
 
 EM_ASYNC_JS(int, avx_js_sink_open, (int hostId), {
   const host = Module.aviotrixHosts.get(hostId);
   if (!host) { Module.aviotrixLastHostError = 'no host registered for id ' + hostId; return -1; }
   try { await host.sinkOpen(); return 0; }
-  catch (e) { Module.aviotrixLastHostError = String(e && e.message ? e.message : e); return -1; }
+  catch (e) { Module.aviotrixLastHostError = Module.aviotrixDescribeError(e); return -1; }
 });
 
 EM_ASYNC_JS(int, avx_js_sink_write, (int hostId, double offset, const uint8_t* src, int length), {
@@ -50,14 +50,14 @@ EM_ASYNC_JS(int, avx_js_sink_write, (int hostId, double offset, const uint8_t* s
   try {
     await host.sinkWrite(offset, HEAPU8.slice(src, src + length));  // copy: the libav buffer is reused
     return 0;
-  } catch (e) { Module.aviotrixLastHostError = String(e && e.message ? e.message : e); return -1; }
+  } catch (e) { Module.aviotrixLastHostError = Module.aviotrixDescribeError(e); return -1; }
 });
 
 EM_ASYNC_JS(int, avx_js_sink_close, (int hostId), {
   const host = Module.aviotrixHosts.get(hostId);
   if (!host) return 0;
   try { await host.sinkClose(); return 0; }
-  catch (e) { Module.aviotrixLastHostError = String(e && e.message ? e.message : e); return -1; }
+  catch (e) { Module.aviotrixLastHostError = Module.aviotrixDescribeError(e); return -1; }
 });
 
 EM_JS(void, avx_js_log, (int hostId, const char* level, const char* text), {

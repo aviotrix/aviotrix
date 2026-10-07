@@ -25,6 +25,16 @@ const logLevels: ReadonlySet<string> = new Set([
   'trace',
 ]);
 
+/**
+ * Checks an IoSource.open() result before it reaches native/wasm code, where NaN or a negative
+ * size would be an invalid integer conversion. Fractional sizes are floored.
+ */
+function validateSourceSize(size: number | null): number | null {
+  if (size === null) return null;
+  if (typeof size === 'number' && Number.isFinite(size) && size >= 0) return Math.floor(size);
+  throw new Error('IoSource.open must return a non-negative finite number or null');
+}
+
 /** Routes a binding's host callbacks to the current IoSource, IoSink, and listeners. */
 export class BindingHost implements BindingHostCallbacks {
   sink: IoSink | null = null;
@@ -35,8 +45,8 @@ export class BindingHost implements BindingHostCallbacks {
     private readonly onLogListener: LogFn | undefined,
   ) {}
 
-  sourceOpen(): ReturnType<IoSource['open']> {
-    return this.source.open();
+  async sourceOpen(): Promise<number | null> {
+    return validateSourceSize(await this.source.open());
   }
   sourceRead(offset: number, length: number): ReturnType<IoSource['read']> {
     return this.source.read(offset, length);

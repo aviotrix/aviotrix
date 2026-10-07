@@ -1,13 +1,13 @@
 export function fakeRangeFetch(
   bytes: Uint8Array,
-  options: { ignoreRange?: boolean; noLength?: boolean } = {},
+  options: { ignoreRange?: boolean; noLength?: boolean; contentLength?: string } = {},
 ): typeof fetch {
   return async (_input, init) => {
     const headers = new Headers(init?.headers);
     const range = headers.get('range');
     if (init?.method === 'HEAD') {
       const h = new Headers({ 'accept-ranges': 'bytes' });
-      if (!options.noLength) h.set('content-length', String(bytes.length));
+      if (!options.noLength) h.set('content-length', options.contentLength ?? String(bytes.length));
       return new Response(null, { status: 200, headers: h });
     }
     if (range && !options.ignoreRange) {
@@ -20,7 +20,7 @@ export function fakeRangeFetch(
         headers: { 'content-range': `bytes ${start}-${end}/${bytes.length}` },
       });
     }
-    return new Response(bytes, {
+    return new Response(bytes.slice(), {
       status: 200,
       headers: { 'content-length': String(bytes.length) },
     });

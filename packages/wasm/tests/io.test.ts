@@ -26,6 +26,12 @@ describe('FetchRangeSource', () => {
     });
     expect(await src.open()).toBeNull();
   });
+  it('returns null size when content-length is not a number', async () => {
+    const src = new FetchRangeSource('https://example.test/f', {
+      fetch: fakeRangeFetch(bytes, { contentLength: 'not-a-number' }),
+    });
+    expect(await src.open()).toBeNull();
+  });
   it('throws when the server ignores Range', async () => {
     const src = new FetchRangeSource('https://example.test/f', {
       fetch: fakeRangeFetch(bytes, { ignoreRange: true }),

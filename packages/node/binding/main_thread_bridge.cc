@@ -1,6 +1,7 @@
 #include "main_thread_bridge.h"
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace aviotrix_node {
@@ -78,12 +79,29 @@ void MainThreadBridge::finish(IoRequest* req, Status status) {
   req->cv.notify_one();
 }
 
-std::string MainThreadBridge::errorMessage(Napi::Env, Napi::Value err) {
-  if (err.IsObject()) {
-    Napi::Value m = err.As<Napi::Object>().Get("message");
-    if (m.IsString()) return m.As<Napi::String>().Utf8Value();
+std::string MainThreadBridge::errorMessage(Napi::Env env, Napi::Value err) {
+  // Must never throw: it runs inside catch blocks and promise callbacks, where a JS exception would
+  // either crash the process or leave the worker waiting forever. Symbols and null-prototype objects
+  // make a plain ToString() throw.
+  static const char* const kUnprintable = "host callback failed (unprintable rejection)";
+  try {
+    if (err.IsObject()) {
+      Napi::Value m = err.As<Napi::Object>().Get("message");
+      if (m.IsString()) {
+        std::string s = m.As<Napi::String>().Utf8Value();
+        if (!s.empty()) return s;
+      }
+    }
+    // String(x) is the one conversion that accepts Symbols (ToString() rejects them).
+    Napi::Function toString = env.Global().Get("String").As<Napi::Function>();
+    Napi::Value str = err.IsSymbol() ? toString.Call({err}) : err.ToString();
+    if (str.IsString()) {
+      std::string s = str.As<Napi::String>().Utf8Value();
+      if (!s.empty()) return s;
+    }
+  } catch (const Napi::Error&) {
   }
-  return err.ToString().Utf8Value();
+  return kUnprintable;
 }
 
 void MainThreadBridge::callJs(Napi::Env env, Napi::Function, Context* ctx, Message* message) {
@@ -179,15 +197,20 @@ void MainThreadBridge::handleIo(Napi::Env env, Context* ctx, IoRequest* req) {
     Napi::Value v = info[0];
     switch (req->kind) {
       case IoRequest::Kind::SourceOpen:
-        if (v.IsNumber())
-          req->size = static_cast<int64_t>(v.As<Napi::Number>().DoubleValue());
-        else if (v.IsNull() || v.IsUndefined())
+        if (v.IsNull() || v.IsUndefined()) {
           req->size.reset();
-        else {
-          finish(req, Status::Error(ErrorCode::IoFailed, "sourceOpen must return a number or null"));
-          return;
+          break;
         }
-        break;
+        // BindingHost validates already; re-check so a NaN or out-of-range cast can never happen here.
+        if (v.IsNumber()) {
+          const double d = v.As<Napi::Number>().DoubleValue();
+          if (std::isfinite(d) && d >= 0 && d < 9007199254740992.0) {
+            req->size = static_cast<int64_t>(d);
+            break;
+          }
+        }
+        finish(req, Status::Error(ErrorCode::IoFailed, "sourceOpen must return a non-negative finite number or null"));
+        return;
       case IoRequest::Kind::SourceRead: {
         if (!v.IsTypedArray()) {
           finish(req, Status::Error(ErrorCode::IoFailed, "sourceRead must return a Uint8Array"));

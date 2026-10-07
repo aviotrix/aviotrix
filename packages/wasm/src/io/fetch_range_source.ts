@@ -23,7 +23,9 @@ export class FetchRangeSource implements IoSource {
     });
     if (!res.ok) throw new Error(`FetchRangeSource: HEAD ${this.url} -> HTTP ${res.status}`);
     const length = res.headers.get('content-length');
-    return length === null ? null : Number(length);
+    if (length === null) return null;
+    const size = Number(length);
+    return Number.isFinite(size) ? size : null; // a malformed header means "size unknown"
   }
 
   async read(offset: number, length: number): Promise<Uint8Array> {
