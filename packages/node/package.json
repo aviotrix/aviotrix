@@ -4,6 +4,7 @@
   "description": "libav (FFmpeg) remuxing and metadata for Node through a custom async AVIO layer",
   "license": "MIT",
   "type": "module",
+  "private": false,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aviotrix/aviotrix.git",
