@@ -35,6 +35,6 @@ case "$target" in
     make_prefix=(emmake)
     ;;
 esac
-"${make_prefix[@]}" make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
-"${make_prefix[@]}" make install
+${make_prefix[@]+"${make_prefix[@]}"} make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
+${make_prefix[@]+"${make_prefix[@]}"} make install
 echo "build-ffmpeg: installed $target to $prefix"
