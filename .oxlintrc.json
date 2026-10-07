@@ -1,5 +1,5 @@
 {
-  "ignorePatterns": ["dist", "build", "third_party", "node_modules"],
+  "ignorePatterns": ["dist", "build", "third_party", "node_modules", "fixtures"],
   "categories": { "correctness": "error", "suspicious": "warn" },
   "rules": {
     "typescript/no-explicit-any": "error",
