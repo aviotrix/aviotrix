@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { IoSink } from '@aviotrix/types';
+import type { IoSink, Metadata } from '@aviotrix/types';
 import {
   AviotrixError,
   FileSink,
@@ -28,6 +28,14 @@ function sameOutput(a: Uint8Array, b: Uint8Array): boolean {
   );
 }
 
+/** Remux output starts at 0 and keeps the source's duration (spec section 10.2). */
+function expectSameTimeline(output: Metadata, source: Metadata): void {
+  expect(output.duration).not.toBeNull();
+  expect(source.duration).not.toBeNull();
+  expect(Math.abs((output.duration ?? 0) - (source.duration ?? 0))).toBeLessThan(0.2);
+  expect(output.startTime ?? 0).toBeLessThanOrEqual(0.1);
+}
+
 let tmp = '';
 beforeAll(async () => {
   tmp = await mkdtemp(join(tmpdir(), 'aviotrix-'));
@@ -38,6 +46,7 @@ afterAll(async () => {
 
 describe('remux', () => {
   it('mp4 -> matroska into MemorySink, reopenable', async () => {
+    const source = await readMetadata(new FileSource(fixture('h264-aac.mp4')));
     const sink = new MemorySink();
     const result = await remux(new FileSource(fixture('h264-aac.mp4')), sink, {
       format: 'matroska',
@@ -51,15 +60,18 @@ describe('remux', () => {
     const m = await readMetadata(new MemorySource(sink.bytes()));
     expect(m.format).toBe('matroska,webm');
     expect(m.streams.map((s) => s.codec)).toEqual(['h264', 'aac']);
+    expectSameTimeline(m, source);
   });
 
   it('ts -> mp4 into FileSink, reopenable', async () => {
+    const source = await readMetadata(new FileSource(fixture('h264-ac3.ts')));
     const out = join(tmp, 'out.mp4');
     await remux(new FileSource(fixture('h264-ac3.ts')), new FileSink(out), { format: 'mp4' });
     const m = await readMetadata(new FileSource(out));
     expect(m.format).toBe('mov,mp4,m4a,3gp,3g2,mj2');
     expect(m.streams.map((s) => s.codec)).toEqual(['h264', 'ac3']);
     expect(m.streams[0]?.video?.width).toBe(320);
+    expectSameTimeline(m, source);
   });
 
   it('skips the srt stream for mp4 by default and fails on request', async () => {
@@ -96,6 +108,18 @@ describe('remux', () => {
     expect(result.packets).toBeGreaterThan(0);
     expect(Buffer.from(streaming.bytes()).includes('moof')).toBe(true);
     await reader.close();
+  });
+
+  it('ts (h264 + ac3) -> fragmented mp4 into a non-seekable sink', async () => {
+    const streaming = new MemorySink({ seekable: false });
+    const result = await remux(new FileSource(fixture('h264-ac3.ts')), streaming, {
+      format: 'mp4',
+      fragmented: true,
+    });
+    expect(result.packets).toBeGreaterThan(0);
+    expect(Buffer.from(streaming.bytes()).includes('moof')).toBe(true);
+    const m = await readMetadata(new MemorySource(streaming.bytes()));
+    expect(m.streams.map((s) => s.codec)).toEqual(['h264', 'ac3']);
   });
 
   it('aborts via AbortSignal and still closes the sink', async () => {

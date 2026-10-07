@@ -7,5 +7,15 @@ export async function fixtureBytes(name: string): Promise<Uint8Array> {
 }
 
 export async function fixtureBlob(name: string): Promise<Blob> {
-  return new Blob([await fixtureBytes(name)]);
+  return blobOf(await fixtureBytes(name));
+}
+
+/**
+ * A Blob of `bytes`. BlobPart needs an ArrayBuffer-backed view (not a possibly shared
+ * ArrayBufferLike), so copy into a fresh ArrayBuffer.
+ */
+export function blobOf(bytes: Uint8Array): Blob {
+  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
+  copy.set(bytes);
+  return new Blob([copy]);
 }

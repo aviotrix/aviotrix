@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { IoSink, IoSource } from '@aviotrix/types';
+import type { IoSink, IoSource, Metadata } from '@aviotrix/types';
 import { BlobSource, MediaReader, MemorySink, readMetadata, remux } from '../src/index.js';
-import { fixtureBlob, fixtureBytes } from './helpers/fixtures.js';
+import { blobOf, fixtureBlob, fixtureBytes } from './helpers/fixtures.js';
 
-const reopen = (bytes: Uint8Array) => readMetadata(new BlobSource(new Blob([bytes])));
+const reopen = (bytes: Uint8Array) => readMetadata(new BlobSource(blobOf(bytes)));
+
+/** Remux output starts at 0 and keeps the source's duration (spec section 10.2). */
+function expectSameTimeline(output: Metadata, source: Metadata): void {
+  expect(output.duration).not.toBeNull();
+  expect(source.duration).not.toBeNull();
+  expect(Math.abs((output.duration ?? 0) - (source.duration ?? 0))).toBeLessThan(0.2);
+  expect(output.startTime ?? 0).toBeLessThanOrEqual(0.1);
+}
 
 // The Matroska muxer writes random SegmentUID/TrackUIDs/date in the first ~1 KB, so compare the
 // length plus everything from offset 1024 onward.
@@ -15,6 +23,7 @@ function sameOutput(a: Uint8Array, b: Uint8Array): boolean {
 
 describe('remux (browser)', () => {
   it('mp4 -> matroska, reopenable', async () => {
+    const source = await readMetadata(new BlobSource(await fixtureBlob('h264-aac.mp4')));
     const sink = new MemorySink();
     const result = await remux(new BlobSource(await fixtureBlob('h264-aac.mp4')), sink, {
       format: 'matroska',
@@ -26,15 +35,18 @@ describe('remux (browser)', () => {
     const m = await reopen(sink.bytes());
     expect(m.format).toBe('matroska,webm');
     expect(m.streams.map((s) => s.codec)).toEqual(['h264', 'aac']);
+    expectSameTimeline(m, source);
     expect(sink.toBlob('video/x-matroska').size).toBe(result.bytesWritten);
   });
 
   it('ts -> mp4, reopenable', async () => {
+    const source = await readMetadata(new BlobSource(await fixtureBlob('h264-ac3.ts')));
     const sink = new MemorySink();
     await remux(new BlobSource(await fixtureBlob('h264-ac3.ts')), sink, { format: 'mp4' });
     const m = await reopen(sink.bytes());
     expect(m.streams.map((s) => s.codec)).toEqual(['h264', 'ac3']);
     expect(m.streams[0]?.video?.width).toBe(320);
+    expectSameTimeline(m, source);
   });
 
   it('skips srt for mp4 by default, fails on request', async () => {
@@ -59,6 +71,32 @@ describe('remux (browser)', () => {
     expect(result.packets).toBeGreaterThan(0);
     expect(new TextDecoder('latin1').decode(streaming.bytes()).includes('moof')).toBe(true);
     await reader.close();
+  });
+
+  it('ts (h264 + ac3) -> fragmented mp4 into a streaming sink', async () => {
+    const streaming = new MemorySink({ seekable: false });
+    const result = await remux(new BlobSource(await fixtureBlob('h264-ac3.ts')), streaming, {
+      format: 'mp4',
+      fragmented: true,
+    });
+    expect(result.packets).toBeGreaterThan(0);
+    expect(new TextDecoder('latin1').decode(streaming.bytes()).includes('moof')).toBe(true);
+    const m = await reopen(streaming.bytes());
+    expect(m.streams.map((s) => s.codec)).toEqual(['h264', 'ac3']);
+  });
+
+  it('a source rejecting with a null-prototype object -> IO_FAILED, and the module still works', async () => {
+    const bytes = await fixtureBytes('h264-aac.mp4');
+    const hostile: IoSource = {
+      open: () => bytes.length,
+      read: () => Promise.reject(Object.create(null)),
+      close() {},
+    };
+    const err = await readMetadata(hostile).catch((e: Error) => e);
+    expect(err).toMatchObject({ code: 'IO_FAILED' });
+    expect((err as Error).message.length).toBeGreaterThan(0);
+    const m = await readMetadata(new BlobSource(blobOf(bytes)));
+    expect(m.streams.map((s) => s.codec)).toEqual(['h264', 'aac']);
   });
 
   it('aborts via AbortSignal and closes the sink', async () => {
@@ -145,7 +183,7 @@ describe('remux (browser)', () => {
   it('short and over-long reads produce the same output as a plain source', async () => {
     const bytes = await fixtureBytes('h264-aac.mp4');
     const reference = new MemorySink();
-    await remux(new BlobSource(new Blob([bytes])), reference, { format: 'matroska' });
+    await remux(new BlobSource(blobOf(bytes)), reference, { format: 'matroska' });
     const weird: IoSource = {
       open: () => bytes.length,
       read: (offset, length) => {
