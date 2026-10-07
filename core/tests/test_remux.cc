@@ -347,3 +347,119 @@ TEST_CASE("mkv with subrip remuxes to matroska keeping all 3 streams") {
   REQUIRE(result.streams.size() == 3);
   REQUIRE(reopen(sink.bytes()).streams.size() == 3);
 }
+
+TEST_CASE("vp9 without pixel format/profile is skipped for mp4, or fails on request") {
+  test::FileSource src(test::fixturePath("vp9-opus.webm"));
+  MediaReader reader;
+  REQUIRE(reader.open(src).ok());
+  for (bool fragmented : {false, true}) {
+    test::MemorySink sink(true);
+    RemuxOptions opt;
+    opt.format = "mp4";
+    opt.fragmented = fragmented;
+    RemuxResult result;
+    REQUIRE(reader.remux(sink, opt, result).ok());
+    REQUIRE(result.streams.size() == 2);
+    REQUIRE_FALSE(result.streams[0].output.has_value());
+    REQUIRE(result.streams[0].skippedReason == "codec vp9 lacks pixel format/profile needed by muxer mp4");
+    REQUIRE(result.streams[1].output == 0);
+    auto m = reopen(sink.bytes());
+    REQUIRE(m.streams.size() == 1);
+    REQUIRE(m.streams[0].codec == "opus");
+  }
+  {
+    test::MemorySink sink(true);
+    RemuxOptions opt;
+    opt.format = "mp4";
+    opt.failOnIncompatible = true;
+    RemuxResult result;
+    Status st = reader.remux(sink, opt, result);
+    REQUIRE(st.code == static_cast<int>(ErrorCode::IncompatibleStream));
+    REQUIRE(st.message.find("vp9") != std::string::npos);
+    REQUIRE_FALSE(sink.opened());
+  }
+}
+
+TEST_CASE("mpegts accepts only codecs it can signal") {
+  {
+    test::FileSource src(test::fixturePath("h264-aac-srt.mkv"));
+    MediaReader reader;
+    REQUIRE(reader.open(src).ok());
+    test::MemorySink sink(true);
+    RemuxOptions opt;
+    opt.format = "mpegts";
+    RemuxResult result;
+    REQUIRE(reader.remux(sink, opt, result).ok());
+    REQUIRE(result.streams.size() == 3);
+    REQUIRE_FALSE(result.streams[2].output.has_value());
+    REQUIRE(result.streams[2].skippedReason == "codec subrip is not supported by muxer mpegts");
+    auto m = reopen(sink.bytes());
+    REQUIRE(m.streams.size() == 2);
+  }
+  {
+    test::FileSource src(test::fixturePath("vp9-opus.webm"));
+    MediaReader reader;
+    REQUIRE(reader.open(src).ok());
+    test::MemorySink sink(true);
+    RemuxOptions opt;
+    opt.format = "mpegts";
+    RemuxResult result;
+    REQUIRE(reader.remux(sink, opt, result).ok());
+    REQUIRE_FALSE(result.streams[0].output.has_value());
+    REQUIRE(result.streams[0].skippedReason == "codec vp9 is not supported by muxer mpegts");
+    REQUIRE(result.streams[1].output == 0);
+    auto m = reopen(sink.bytes());
+    REQUIRE(m.streams.size() == 1);
+    REQUIRE(m.streams[0].codec == "opus");
+  }
+}
+
+TEST_CASE("webm to mov is rejected up front instead of failing in write_header") {
+  test::FileSource src(test::fixturePath("vp9-opus.webm"));
+  MediaReader reader;
+  REQUIRE(reader.open(src).ok());
+  test::MemorySink sink(true);
+  RemuxOptions opt;
+  opt.format = "mov";
+  RemuxResult result;
+  Status st = reader.remux(sink, opt, result);
+  REQUIRE(st.code == static_cast<int>(ErrorCode::IncompatibleStream));
+  REQUIRE(st.message == "no selected stream is supported by muxer mov");
+  REQUIRE_FALSE(sink.opened());
+}
+
+TEST_CASE("mpegts (ac3) to fragmented mp4 on a streaming sink") {
+  test::FileSource src(test::fixturePath("h264-ac3.ts"));
+  MediaReader reader;
+  REQUIRE(reader.open(src).ok());
+  test::MemorySink sink(false);
+  RemuxOptions opt;
+  opt.format = "mp4";
+  opt.fragmented = true;
+  RemuxResult result;
+  REQUIRE(reader.remux(sink, opt, result).ok());
+  REQUIRE(contains(sink.bytes(), "moof"));
+  auto m = reopen(sink.bytes());
+  REQUIRE(m.streams.size() == 2);
+  REQUIRE(m.streams[1].codec == "ac3");
+}
+
+TEST_CASE("remux output starts at 0 (input start offset is removed)") {
+  test::FileSource src(test::fixturePath("h264-ac3.ts"));
+  MediaReader reader;
+  REQUIRE(reader.open(src).ok());
+  const aviotrix::Metadata in = reader.metadata();
+  REQUIRE(*in.startTime > 1.0);  // the fixture starts at ~1.46 s
+  for (const char* format : {"mp4", "matroska"}) {
+    test::MemorySink sink(true);
+    RemuxOptions opt;
+    opt.format = format;
+    RemuxResult result;
+    REQUIRE(reader.remux(sink, opt, result).ok());
+    auto m = reopen(sink.bytes());
+    REQUIRE(m.startTime.has_value());
+    REQUIRE(*m.startTime <= 0.1);
+    REQUIRE(m.duration.has_value());
+    REQUIRE(std::abs(*m.duration - *in.duration) < 0.2);
+  }
+}
