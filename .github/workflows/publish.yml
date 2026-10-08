@@ -1,16 +1,20 @@
 name: Publish
 on:
-  workflow_run:
-    workflows: ['Prebuild native binaries']
-    types:
-      - completed
+  push:
+    tags: ['v*']
 
 concurrency:
   group: publish
   cancel-in-progress: false
 
 jobs:
+  prebuild:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/prebuild.yml
+
   publish:
+    needs: prebuild
     runs-on: ubuntu-24.04
     environment: release
     permissions:

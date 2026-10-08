@@ -1,7 +1,6 @@
 name: Prebuild native binaries
 on:
-  push:
-    tags: ['v*']
+    workflow_call:
 
 jobs:
   prebuild:
