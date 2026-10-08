@@ -1,6 +1,6 @@
 name: Prebuild native binaries
 on:
-    workflow_call:
+  workflow_call:
 
 jobs:
   prebuild:
