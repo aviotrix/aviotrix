@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>aviotrix container converter</title>
+    <!--
+      Static example: remux a media file into another container in the browser with @aviotrix/wasm.
+      No re-encoding happens; the streams are copied into the new container.
+
+      Run from the repository root after `npm run build -w @aviotrix/wasm`:
+        python3 -m http.server 8080
+      then open http://localhost:8080/packages/wasm/examples/convert.html
+      (needs a browser with WebAssembly JSPI: Chrome 137+, Safari 27+, Firefox 153+).
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@aviotrix/types": "../../types/dist/index.js",
+          "@aviotrix/wasm": "../dist/index.js"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fafafa;
+        --fg: #1b1b1f;
+        --muted: #6b6b76;
+        --card: #ffffff;
+        --border: #d8d8e0;
+        --accent: #2f5bea;
+        --error: #c62828;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #15151a;
+          --fg: #ececf1;
+          --muted: #9a9aa8;
+          --card: #1e1e25;
+          --border: #34343f;
+          --accent: #7b9bff;
+          --error: #ff6b6b;
+        }
+      }
+      body {
+        margin: 0;
+        padding: 2rem 16px;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 40rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+      }
+      p.lead {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+      }
+      section {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+      select,
+      input[type='file'],
+      button {
+        font: inherit;
+        max-width: 100%;
+      }
+      button {
+        padding: 0.5rem 1rem;
+        border: 0;
+        border-radius: 6px;
+        background: var(--accent);
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: end;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.25rem 0.5rem 0.25rem 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .error {
+        color: var(--error);
+      }
+      progress {
+        width: 100%;
+      }
+      [hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Container converter</h1>
+      <p class="lead">
+        Pick a media file and a target container. Streams are copied, not re-encoded, and nothing
+        leaves your browser.
+      </p>
+
+      <section>
+        <div class="row">
+          <div>
+            <label for="file">Input file</label>
+            <input id="file" type="file" accept="video/*,audio/*,.mkv,.ts,.mts,.m2ts" />
+          </div>
+          <div>
+            <label for="format">Output container</label>
+            <select id="format">
+              <option value="mp4">MP4</option>
+              <option value="mov">QuickTime (MOV)</option>
+              <option value="matroska">Matroska (MKV)</option>
+              <option value="webm">WebM</option>
+              <option value="mpegts">MPEG-TS</option>
+            </select>
+          </div>
+          <button id="convert" type="button" disabled>Convert</button>
+        </div>
+      </section>
+
+      <section id="info" hidden>
+        <strong id="info-title"></strong>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Type</th>
+              <th>Codec</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="streams"></tbody>
+        </table>
+      </section>
+
+      <section id="status" hidden>
+        <progress id="progress" max="1" value="0"></progress>
+        <div id="message" class="muted"></div>
+        <ul id="mapping"></ul>
+        <a id="download" hidden>Download</a>
+      </section>
+    </main>
+
+    <script type="module">
+      import { MediaReader, BlobSource, MemorySink, AviotrixError } from '@aviotrix/wasm';
+
+      const containers = {
+        mp4: { extension: 'mp4', mime: 'video/mp4' },
+        mov: { extension: 'mov', mime: 'video/quicktime' },
+        matroska: { extension: 'mkv', mime: 'video/x-matroska' },
+        webm: { extension: 'webm', mime: 'video/webm' },
+        mpegts: { extension: 'ts', mime: 'video/mp2t' },
+      };
+
+      const fileInput = document.getElementById('file');
+      const formatSelect = document.getElementById('format');
+      const convertButton = document.getElementById('convert');
+      const info = document.getElementById('info');
+      const infoTitle = document.getElementById('info-title');
+      const streamRows = document.getElementById('streams');
+      const status = document.getElementById('status');
+      const progress = document.getElementById('progress');
+      const message = document.getElementById('message');
+      const mapping = document.getElementById('mapping');
+      const download = document.getElementById('download');
+
+      let downloadUrl = null;
+
+      function setMessage(text, isError = false) {
+        status.hidden = false;
+        message.textContent = text;
+        message.className = isError ? 'error' : 'muted';
+      }
+
+      function describeStream(stream) {
+        if (stream.video) return `${stream.video.width}x${stream.video.height}`;
+        if (stream.audio) return `${stream.audio.sampleRate} Hz, ${stream.audio.channels} ch`;
+        return stream.language ?? '';
+      }
+
+      function showMetadata(metadata) {
+        info.hidden = false;
+        const seconds = metadata.duration === null ? '' : `, ${metadata.duration.toFixed(1)} s`;
+        infoTitle.textContent = `${metadata.formatLongName}${seconds}`;
+        streamRows.replaceChildren(
+          ...metadata.streams.map((stream) => {
+            const tr = document.createElement('tr');
+            for (const text of [
+              String(stream.index),
+              stream.type,
+              stream.codec,
+              describeStream(stream),
+            ]) {
+              const td = document.createElement('td');
+              td.textContent = text;
+              tr.append(td);
+            }
+            return tr;
+          }),
+        );
+      }
+
+      async function inspect(file) {
+        info.hidden = true;
+        status.hidden = true;
+        convertButton.disabled = true;
+        const reader = await MediaReader.open(new BlobSource(file));
+        try {
+          showMetadata(reader.metadata);
+          convertButton.disabled = false;
+        } finally {
+          await reader.close();
+        }
+      }
+
+      async function convert(file, format) {
+        if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+        downloadUrl = null;
+        download.hidden = true;
+        mapping.replaceChildren();
+        progress.value = 0;
+        setMessage('Converting…');
+
+        const target = containers[format];
+        const sink = new MemorySink();
+        const reader = await MediaReader.open(new BlobSource(file));
+        try {
+          const result = await reader.remux(sink, {
+            format,
+            onProgress: ({ bytesRead }) => {
+              progress.value = file.size > 0 ? Math.min(1, bytesRead / file.size) : 0;
+            },
+          });
+          progress.value = 1;
+
+          for (const stream of result.streams) {
+            const li = document.createElement('li');
+            li.textContent =
+              stream.output === null
+                ? `input ${stream.input}: skipped (${stream.skippedReason ?? 'not supported'})`
+                : `input ${stream.input} → output ${stream.output}`;
+            mapping.append(li);
+          }
+
+          downloadUrl = URL.createObjectURL(sink.toBlob(target.mime));
+          const baseName = file.name.replace(/\.[^.]+$/, '');
+          download.href = downloadUrl;
+          download.download = `${baseName}.${target.extension}`;
+          download.textContent = `Download ${download.download} (${result.bytesWritten} bytes)`;
+          download.hidden = false;
+          setMessage(`Done: ${result.packets} packets copied.`);
+        } finally {
+          await reader.close();
+        }
+      }
+
+      function report(error) {
+        const text =
+          error instanceof AviotrixError
+            ? `${error.code}: ${error.message}`
+            : error instanceof Error
+              ? error.message
+              : String(error);
+        setMessage(text, true);
+      }
+
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        inspect(file).catch(report);
+      });
+
+      convertButton.addEventListener('click', () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        convertButton.disabled = true;
+        convert(file, formatSelect.value)
+          .catch(report)
+          .finally(() => {
+            convertButton.disabled = false;
+          });
+      });
+    </script>
+  </body>
+</html>

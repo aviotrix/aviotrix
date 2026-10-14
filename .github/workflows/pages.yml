@@ -1,0 +1,53 @@
+name: Deploy example to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: true }
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: npm }
+      - uses: mymindstorm/setup-emsdk@v16
+        with: { version: 6.0.10 }
+      - name: Cache FFmpeg (wasm)
+        uses: actions/cache@v6
+        with:
+          path: build/ffmpeg-wasm
+          key: ffmpeg-wasm-${{ hashFiles('scripts/build-ffmpeg.sh', 'scripts/ffmpeg-components.sh', '.gitmodules') }}-${{ hashFiles('third_party/ffmpeg/RELEASE') }}
+      - run: npm ci
+      - run: npm run build -w @aviotrix/types
+      - run: npm run build -w @aviotrix/wasm
+      - name: Assemble site
+        # Keeps the repository layout so the example's relative import map resolves unchanged.
+        run: |
+          mkdir -p _site/packages/types _site/packages/wasm
+          cp -R packages/types/dist _site/packages/types/dist
+          cp -R packages/wasm/dist _site/packages/wasm/dist
+          cp -R packages/wasm/examples _site/packages/wasm/examples
+          echo '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=packages/wasm/examples/convert.html"><a href="packages/wasm/examples/convert.html">aviotrix converter example</a>' > _site/index.html
+      - uses: actions/upload-pages-artifact@v4
+        with: { path: _site }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

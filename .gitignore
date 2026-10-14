@@ -8,3 +8,4 @@ packages/wasm/dist/
 packages/node/native-src/
 prebuilds/
 packages/wasm/.vitest/
+_site/
