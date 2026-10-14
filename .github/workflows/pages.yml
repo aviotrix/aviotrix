@@ -32,13 +32,16 @@ jobs:
       - run: npm run build -w @aviotrix/types
       - run: npm run build -w @aviotrix/wasm
       - name: Assemble site
-        # Keeps the repository layout so the example's relative import map resolves unchanged.
+        # The example becomes index.html; its import map is repointed at the copied dist folders.
         run: |
           mkdir -p _site/packages/types _site/packages/wasm
           cp -R packages/types/dist _site/packages/types/dist
           cp -R packages/wasm/dist _site/packages/wasm/dist
-          cp -R packages/wasm/examples _site/packages/wasm/examples
-          echo '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=packages/wasm/examples/convert.html"><a href="packages/wasm/examples/convert.html">aviotrix converter example</a>' > _site/index.html
+          sed -e 's#"\.\./\.\./types/dist/#"./packages/types/dist/#' \
+              -e 's#"\.\./dist/#"./packages/wasm/dist/#' \
+              packages/wasm/examples/convert.html > _site/index.html
+          grep -q './packages/types/dist/index.js' _site/index.html
+          grep -q './packages/wasm/dist/index.js' _site/index.html
       - uses: actions/upload-pages-artifact@v4
         with: { path: _site }
 
